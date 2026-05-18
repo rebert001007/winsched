@@ -1,0 +1,33 @@
+# WinSched Configuration
+logging:
+  file: "C:\\ProgramData\\winsched\\service.log"
+  level: "info"
+
+api:
+  port: 15732
+  enabled: true
+
+proxy:
+  host: "127.0.0.1"
+  port: 10808
+
+tasks:
+  - name: "example-every-minute"
+    description: "Test task — runs every minute, writes timestamp to a file"
+    cron: "@every 1m"
+    command: "powershell.exe"
+    args:
+      - "-Command"
+      - "Add-Content -Path 'C:\\ProgramData\\winsched\\heartbeat.log' -Value \"$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') Winsched heartbeat\""
+    timeout: "30s"
+    enabled: false
+
+  - name: "daily-cleanup"
+    description: "Clean temp files daily at 3 AM"
+    cron: "0 3 * * *"
+    command: "powershell.exe"
+    args:
+      - "-Command"
+      - "Remove-Item -Path 'C:\\Temp\\*' -Recurse -Force -ErrorAction SilentlyContinue"
+    timeout: "10m"
+    enabled: false
