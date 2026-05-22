@@ -1,33 +1,98 @@
-# WinSched Configuration
 logging:
-  file: "C:\\ProgramData\\winsched\\service.log"
-  level: "info"
-
+    file: C:\ProgramData\winsched\service.log
+    level: info
 api:
-  port: 15732
-  enabled: true
-
+    port: 15732
+    enabled: true
 proxy:
-  host: "127.0.0.1"
-  port: 10808
-
+    host: 127.0.0.1
+    port: 10808
+telegram:
+    bot_token: 8489938391:AAFB8DQEfmc8dBAYylwa-LIWSXd5_xOkvGg
+    chat_id: "-5231009610"
+    enabled: true
 tasks:
-  - name: "example-every-minute"
-    description: "Test task — runs every minute, writes timestamp to a file"
-    cron: "@every 1m"
-    command: "powershell.exe"
-    args:
-      - "-Command"
-      - "Add-Content -Path 'C:\\ProgramData\\winsched\\heartbeat.log' -Value \"$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') Winsched heartbeat\""
-    timeout: "30s"
-    enabled: false
-
-  - name: "daily-cleanup"
-    description: "Clean temp files daily at 3 AM"
-    cron: "0 3 * * *"
-    command: "powershell.exe"
-    args:
-      - "-Command"
-      - "Remove-Item -Path 'C:\\Temp\\*' -Recurse -Force -ErrorAction SilentlyContinue"
-    timeout: "10m"
-    enabled: false
+    - name: yueyao-morning-pipeline-slot1
+      description: Run YueYao TikTok slot 1 pipeline at 16:30 America/Los_Angeles.
+      cron: 30 7 * * *
+      command: pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\yueyao-tiktok-ops\scripts\pipeline\run_morning_slot1_winsched.ps1
+      timeout: 30m0s
+      enabled: true
+      use_proxy: false
+    - name: football-daily-news-incremental
+      description: Half-hourly incremental sync of Dongqiudi, Zhibo8, FIFA, and ESPN news. Each source syncs to std_news independently. Runs at :27 and :57 (3min before :00/:30).
+      cron: 27,57 * * * *
+      command: pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_news_incremental_sync_winsched.ps1
+      timeout: 30m0s
+      enabled: true
+      use_proxy: false
+    - name: football-daily-dongqiudi-matches
+      description: Sync Dongqiudi important matches daily at Beijing 01:05 (CST) for Football Daily WeChat.
+      cron: 5 1 * * *
+      command: pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_dongqiudi_matches_winsched.ps1
+      timeout: 30m0s
+      enabled: true
+      use_proxy: false
+    - name: football-daily-morning-report
+      description: Generate Football Daily morning report prompt daily at Beijing 07:20 (CST).
+      cron: 20 7 * * *
+      command: pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_morning_report_winsched.ps1
+      timeout: 30m0s
+      enabled: true
+      use_proxy: false
+    - name: football-daily-worldcup-squads
+      description: Refresh World Cup squad snapshots at 07:00, 15:00, and 19:00 Beijing time.
+      cron: 0 7,15,19 * * *
+      command: pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_squad_sync_winsched.ps1
+      timeout: 30m0s
+      enabled: true
+      use_proxy: false
+    - name: football-daily-unfinalized-squad-watch
+      description: Daily reminder to refresh unpublished-final World Cup squad announcement timing at 08:00 Beijing time.
+      cron: 0 8 * * *
+      command: pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_unfinalized_squad_watch_winsched.ps1
+      timeout: 30m0s
+      enabled: true
+      use_proxy: false
