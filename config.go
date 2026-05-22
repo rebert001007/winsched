@@ -11,8 +11,9 @@ import (
 type Config struct {
 	Logging LoggingConfig `yaml:"logging"`
 	API     APIConfig     `yaml:"api"`
-	Proxy   ProxyConfig   `yaml:"proxy"`
-	Tasks   []TaskConfig  `yaml:"tasks"`
+	Proxy    ProxyConfig    `yaml:"proxy"`
+	Telegram TelegramConfig `yaml:"telegram"`
+	Tasks    []TaskConfig   `yaml:"tasks"`
 }
 
 // LoggingConfig controls log output.
@@ -31,6 +32,13 @@ type APIConfig struct {
 type ProxyConfig struct {
 	Host string `yaml:"host"`
 	Port int    `yaml:"port"`
+}
+
+// TelegramConfig controls Telegram bot notifications.
+type TelegramConfig struct {
+	BotToken string `yaml:"bot_token"`
+	ChatID   string `yaml:"chat_id"`
+	Enabled  bool   `yaml:"enabled"`
 }
 
 // TaskConfig defines a single scheduled task.
@@ -59,6 +67,9 @@ func DefaultConfig() *Config {
 		Proxy: ProxyConfig{
 			Host: "127.0.0.1",
 			Port: 10808,
+		},
+		Telegram: TelegramConfig{
+			Enabled: false,
 		},
 	}
 }

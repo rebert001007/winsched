@@ -12,21 +12,23 @@ import (
 
 // APIServer provides an HTTP API for dynamic task management.
 type APIServer struct {
-	mu         sync.Mutex
-	config     *Config
-	configPath string
-	sched      *Scheduler
-	logger     *Logger
-	httpServer *http.Server
+	mu          sync.Mutex
+	config      *Config
+	configPath  string
+	logFilePath string
+	sched       *Scheduler
+	logger      *Logger
+	httpServer  *http.Server
 }
 
 // NewAPIServer creates the API server (does not start listening).
-func NewAPIServer(cfg *Config, configPath string, sched *Scheduler, logger *Logger) *APIServer {
+func NewAPIServer(cfg *Config, configPath string, sched *Scheduler, logger *Logger, logFilePath string) *APIServer {
 	a := &APIServer{
-		config:     cfg,
-		configPath: configPath,
-		sched:      sched,
-		logger:     logger,
+		config:      cfg,
+		configPath:  configPath,
+		logFilePath: logFilePath,
+		sched:       sched,
+		logger:      logger,
 	}
 
 	mux := http.NewServeMux()
@@ -37,6 +39,8 @@ func NewAPIServer(cfg *Config, configPath string, sched *Scheduler, logger *Logg
 	mux.HandleFunc("DELETE /api/tasks/{name}", a.handleDeleteTask)
 	mux.HandleFunc("GET /api/executions", a.handleExecutions)
 	mux.HandleFunc("GET /api/tasks/{name}/executions", a.handleTaskExecutions)
+	mux.HandleFunc("GET /api/logs", HandleLogs(logFilePath))
+	mux.HandleFunc("GET /", DashboardHandler())
 
 	a.httpServer = &http.Server{
 		Addr:           fmt.Sprintf("127.0.0.1:%d", cfg.API.Port),

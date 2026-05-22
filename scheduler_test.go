@@ -79,3 +79,33 @@ func TestScheduler_EnabledTask(t *testing.T) {
 	}
 	sched.Stop()
 }
+
+func TestScheduler_TelegramNotifierNil(t *testing.T) {
+	logger, _ := NewLogger(DebugLevel, "", false)
+	defer logger.Close()
+
+	cfg := &Config{
+		Telegram: TelegramConfig{Enabled: false},
+	}
+	sched := NewScheduler(cfg, logger)
+	defer sched.Stop()
+
+	if sched.notifier != nil {
+		t.Error("notifier should be nil when Telegram is not enabled")
+	}
+}
+
+func TestScheduler_TelegramNotifierCreated(t *testing.T) {
+	logger, _ := NewLogger(DebugLevel, "", false)
+	defer logger.Close()
+
+	cfg := &Config{
+		Telegram: TelegramConfig{Enabled: true, BotToken: "tok", ChatID: "123"},
+	}
+	sched := NewScheduler(cfg, logger)
+	defer sched.Stop()
+
+	if sched.notifier == nil {
+		t.Error("notifier should be non-nil when Telegram is enabled with valid config")
+	}
+}

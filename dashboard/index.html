@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WinSched 管理后台</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #0f1117; --surface: #1a1d27; --border: #2a2d3a;
+  --text: #e1e4eb; --text-muted: #8b8fa3; --accent: #5b8af7;
+  --green: #34d399; --red: #f87171; --orange: #fbbf24; --blue: #60a5fa;
+  --radius: 8px; --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --mono: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+}
+body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; }
+/* Nav */
+nav { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; align-items: center; height: 52px; gap: 24px; }
+nav h1 { font-size: 16px; font-weight: 600; letter-spacing: -0.3px; }
+nav .tabs { display: flex; gap: 4px; }
+nav .tabs button { background: none; border: none; color: var(--text-muted); padding: 6px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; font-family: var(--font); transition: all 0.15s; }
+nav .tabs button:hover { color: var(--text); background: rgba(255,255,255,0.05); }
+nav .tabs button.active { color: var(--accent); background: rgba(91,138,247,0.1); }
+nav .spacer { flex: 1; }
+nav .status { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+nav .status .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+/* Content */
+main { max-width: 1200px; margin: 0 auto; padding: 24px; }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+/* Cards */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+.card .label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+.card .value { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+.card .value.green { color: var(--green); }
+.card .value.red { color: var(--red); }
+.card .value.blue { color: var(--blue); }
+/* Tables */
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 10px 14px; font-size: 13px; border-bottom: 1px solid var(--border); }
+th { color: var(--text-muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+tr:hover td { background: rgba(255,255,255,0.02); }
+/* Badges */
+.badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; letter-spacing: 0.3px; }
+.badge-success { background: rgba(52,211,153,0.15); color: var(--green); }
+.badge-failed { background: rgba(248,113,113,0.15); color: var(--red); }
+.badge-timeout { background: rgba(251,191,36,0.15); color: var(--orange); }
+.badge-running { background: rgba(96,165,250,0.15); color: var(--blue); }
+.badge-enabled { background: rgba(52,211,153,0.15); color: var(--green); }
+.badge-disabled { background: rgba(139,143,163,0.15); color: var(--text-muted); }
+/* Buttons */
+.btn { padding: 7px 16px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; font-size: 13px; font-family: var(--font); transition: all 0.15s; white-space: nowrap; }
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-primary:hover { opacity: 0.9; color: #fff; }
+.btn-danger { color: var(--red); }
+.btn-danger:hover { border-color: var(--red); background: rgba(248,113,113,0.1); }
+.btn-sm { padding: 4px 10px; font-size: 11px; }
+.btn-xs { padding: 2px 8px; font-size: 10px; border-radius: 4px; }
+/* Filters */
+.filters { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+.filters select, .filters input { padding: 7px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 13px; font-family: var(--font); }
+.filters select { cursor: pointer; }
+/* Section header */
+.section-hd { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.section-hd h2 { font-size: 15px; font-weight: 600; }
+/* Toolbar row */
+.toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+/* Modal */
+.modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 100; justify-content: center; align-items: center; }
+.modal-overlay.open { display: flex; }
+.modal { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; width: 520px; max-height: 80vh; overflow-y: auto; }
+.modal h2 { font-size: 16px; margin-bottom: 20px; }
+.modal .form-group { margin-bottom: 14px; }
+.modal label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+.modal input, .modal textarea, .modal select { width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 13px; font-family: var(--font); }
+.modal textarea { min-height: 60px; resize: vertical; }
+.modal .checkbox-row { display: flex; align-items: center; gap: 8px; }
+.modal .checkbox-row input[type=checkbox] { width: auto; accent-color: var(--accent); }
+.modal .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+/* Log lines */
+.log-lines { font-family: var(--mono); font-size: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; max-height: 600px; overflow-y: auto; line-height: 1.7; white-space: pre-wrap; word-break: break-all; }
+.log-lines .log-debug { color: var(--text-muted); } .log-lines .log-info { color: var(--blue); }
+.log-lines .log-warn { color: var(--orange); } .log-lines .log-error { color: var(--red); }
+/* Output cell */
+.output-cell { max-width: 400px; font-family: var(--mono); font-size: 11px; white-space: pre-wrap; word-break: break-all; max-height: 60px; overflow: hidden; color: var(--text-muted); }
+/* Empty state */
+.empty { text-align: center; padding: 48px; color: var(--text-muted); font-size: 14px; }
+/* Responsive */
+@media (max-width: 768px) {
+  main { padding: 16px; }
+  .cards { grid-template-columns: repeat(2, 1fr); }
+  nav { padding: 0 12px; gap: 8px; }
+  nav .tabs button { padding: 6px 10px; font-size: 12px; }
+  table { display: block; overflow-x: auto; }
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <h1>WinSched</h1>
+  <div class="tabs">
+    <button class="active" data-tab="overview">概览</button>
+    <button data-tab="tasks">任务</button>
+    <button data-tab="executions">执行记录</button>
+    <button data-tab="logs">日志</button>
+  </div>
+  <div class="spacer"></div>
+  <div class="status"><div class="dot"></div><span id="refresh-time">--</span></div>
+  <button class="btn btn-sm" id="btn-refresh" title="刷新">↻</button>
+</nav>
+
+<main>
+  <!-- Overview Tab -->
+  <div class="tab-content active" id="tab-overview">
+    <div class="cards" id="stats-cards"></div>
+    <div class="section-hd"><h2>最近执行记录</h2></div>
+    <div id="recent-executions"></div>
+  </div>
+
+  <!-- Tasks Tab -->
+  <div class="tab-content" id="tab-tasks">
+    <div class="section-hd">
+      <h2>任务列表</h2>
+      <button class="btn btn-primary" id="btn-add-task">+ 新建任务</button>
+    </div>
+    <div id="task-table"></div>
+  </div>
+
+  <!-- Executions Tab -->
+  <div class="tab-content" id="tab-executions">
+    <div class="filters">
+      <select id="exec-task-filter"><option value="">全部任务</option></select>
+      <select id="exec-status-filter">
+        <option value="">全部状态</option>
+        <option value="running">运行中</option>
+        <option value="success">成功</option>
+        <option value="failed">失败</option>
+        <option value="timeout">超时</option>
+      </select>
+      <input type="number" id="exec-limit" value="50" min="1" max="200" style="width:80px" title="条数">
+    </div>
+    <div id="exec-table"></div>
+  </div>
+
+  <!-- Logs Tab -->
+  <div class="tab-content" id="tab-logs">
+    <div class="filters">
+      <select id="log-level-filter">
+        <option value="">全部级别</option>
+        <option value="DEBUG">DEBUG</option>
+        <option value="INFO">INFO</option>
+        <option value="WARN">WARN</option>
+        <option value="ERROR">ERROR</option>
+      </select>
+      <input type="number" id="log-limit" value="200" min="10" max="1000" style="width:80px" title="行数">
+      <button class="btn btn-sm" id="btn-log-refresh">刷新</button>
+    </div>
+    <div class="log-lines" id="log-container"><span style="color:var(--text-muted)">加载中...</span></div>
+  </div>
+</main>
+
+<!-- Task Form Modal -->
+<div class="modal-overlay" id="modal-task">
+  <div class="modal">
+    <h2 id="modal-title">新建任务</h2>
+    <input type="hidden" id="task-form-mode" value="add">
+    <div class="form-group"><label>名称 *</label><input id="task-name" placeholder="任务名称"></div>
+    <div class="form-group"><label>Cron 表达式 *</label><input id="task-cron" placeholder="*/5 * * * *"></div>
+    <div class="form-group"><label>命令 *</label><input id="task-command" placeholder="powershell.exe"></div>
+    <div class="form-group"><label>参数（每行一个）</label><textarea id="task-args" placeholder="-NoProfile&#10;-File&#10;D:\script.ps1"></textarea></div>
+    <div class="form-group"><label>描述</label><input id="task-desc" placeholder="任务描述"></div>
+    <div class="form-group"><label>超时时间</label><input id="task-timeout" placeholder="30m0s" value="30m0s"></div>
+    <div class="form-group checkbox-row"><input type="checkbox" id="task-enabled" checked><label for="task-enabled" style="margin:0;cursor:pointer">启用</label></div>
+    <div class="form-group checkbox-row"><input type="checkbox" id="task-proxy"><label for="task-proxy" style="margin:0;cursor:pointer">使用代理</label></div>
+    <div class="actions">
+      <button class="btn" id="btn-modal-cancel">取消</button>
+      <button class="btn btn-primary" id="btn-modal-save">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== State =====
+const API = '';
+let tasks = [];
+let refreshTimer;
+
+// ===== Utils =====
+async function api(url, opts) {
+  const res = await fetch(API + url, opts);
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || 'request failed');
+  return data.data;
+}
+
+function fmtTime(t) { return t ? new Date(t).toLocaleString('zh-CN', {hour12:false}) : '--'; }
+function fmtDur(s, e) {
+  if (!s || !e) return '--';
+  const ms = new Date(e) - new Date(s);
+  if (ms < 1000) return ms + 'ms';
+  if (ms < 60000) return (ms/1000).toFixed(1) + 's';
+  return (ms/60000).toFixed(1) + 'm';
+}
+function statusBadge(s) {
+  const cls = {success:'badge-success',failed:'badge-failed',timeout:'badge-timeout',running:'badge-running'}[s]||'';
+  return `<span class="badge ${cls}">${s}</span>`;
+}
+function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ===== Navigation =====
+document.querySelectorAll('nav .tabs button').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('nav .tabs button').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    document.querySelectorAll('.tab-content').forEach(x => x.classList.remove('active'));
+    document.getElementById('tab-' + b.dataset.tab).classList.add('active');
+    refreshCurrentTab(b.dataset.tab);
+  });
+});
+document.getElementById('btn-refresh').addEventListener('click', () => {
+  const active = document.querySelector('.tab-content.active');
+  if (active) refreshCurrentTab(active.id.replace('tab-', ''));
+});
+
+function refreshCurrentTab(tab) {
+  switch(tab) {
+    case 'overview': loadOverview(); break;
+    case 'tasks': loadTasks(); break;
+    case 'executions': loadExecutions(); break;
+    case 'logs': loadLogs(); break;
+  }
+}
+
+// ===== Overview =====
+async function loadOverview() {
+  try {
+    const [tasks, execs] = await Promise.all([
+      api('/api/tasks'),
+      api('/api/executions?n=50')
+    ]);
+    const now = Date.now();
+    const recent = execs.filter(e => now - new Date(e.end_time).getTime() < 86400000);
+    const succ = recent.filter(e => e.status === 'success').length;
+    const fail = recent.filter(e => e.status === 'failed').length;
+    const timeo = recent.filter(e => e.status === 'timeout').length;
+    const running = execs.filter(e => e.status === 'running').length;
+    document.getElementById('stats-cards').innerHTML = `
+      <div class="card"><div class="label">任务总数</div><div class="value">${tasks.length}</div></div>
+      <div class="card"><div class="label">已启用</div><div class="value green">${tasks.filter(t=>t.Enabled).length}</div></div>
+      <div class="card"><div class="label">24h 成功 / 失败 / 超时</div><div class="value green" style="font-size:22px">${succ} <span style="color:var(--red);font-size:22px">${fail}</span> <span style="color:var(--orange);font-size:22px">${timeo}</span></div></div>
+      <div class="card"><div class="label">运行中</div><div class="value blue">${running}</div></div>`;
+    const top10 = execs.slice(0, 10);
+    let rows = '';
+    top10.forEach(e => {
+      rows += `<tr><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(e.task_name)}">${esc(e.task_name)}</td>
+        <td>${fmtTime(e.start_time)}</td><td>${fmtTime(e.end_time)}</td>
+        <td>${fmtDur(e.start_time,e.end_time)}</td><td>${statusBadge(e.status)}</td>
+        <td class="output-cell">${esc(e.error||e.output||'')}</td></tr>`;
+    });
+    document.getElementById('recent-executions').innerHTML = top10.length
+      ? `<table><thead><tr><th>任务</th><th>开始</th><th>结束</th><th>耗时</th><th>状态</th><th>输出</th></tr></thead><tbody>${rows}</tbody></table>`
+      : '<div class="empty">暂无执行记录</div>';
+    updateRefreshTime();
+  } catch(e) { console.error(e); }
+}
+
+// ===== Tasks =====
+async function loadTasks() {
+  try {
+    tasks = await api('/api/tasks');
+    if (!tasks.length) {
+      document.getElementById('task-table').innerHTML = '<div class="empty">暂无任务，点击右上角新建</div>';
+      return;
+    }
+    let rows = '';
+    tasks.forEach((t, i) => {
+      rows += `<tr>
+        <td style="font-weight:600">${esc(t.Name)}</td>
+        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(t.Description||'')}">${esc(t.Description||'--')}</td>
+        <td><code style="font-family:var(--mono);font-size:12px;background:rgba(255,255,255,0.05);padding:2px 6px;border-radius:4px">${esc(t.Cron)}</code></td>
+        <td style="font-family:var(--mono);font-size:12px">${esc(t.Command)}</td>
+        <td><span class="badge ${t.Enabled?'badge-enabled':'badge-disabled'}">${t.Enabled?'启用':'禁用'}</span></td>
+        <td>
+          <div style="display:flex;gap:4px;flex-wrap:wrap">
+            <button class="btn btn-xs" onclick="editTask(${i})" title="编辑">✎</button>
+            <button class="btn btn-xs" onclick="toggleTask(${i})" title="${t.Enabled?'禁用':'启用'}">${t.Enabled?'⊘':'▶'}</button>
+            <button class="btn btn-xs btn-danger" onclick="deleteTask(${i})" title="删除">✕</button>
+          </div>
+        </td></tr>`;
+    });
+    document.getElementById('task-table').innerHTML = `<table><thead><tr><th>名称</th><th>描述</th><th>Cron</th><th>命令</th><th>状态</th><th>操作</th></tr></thead><tbody>${rows}</tbody></table>`;
+    updateRefreshTime();
+  } catch(e) { console.error(e); }
+}
+
+function openTaskModal(mode, index) {
+  document.getElementById('task-form-mode').value = mode;
+  document.getElementById('modal-title').textContent = mode === 'add' ? '新建任务' : '编辑任务';
+  document.getElementById('modal-task').classList.add('open');
+  if (mode === 'edit' && index !== undefined) {
+    const t = tasks[index];
+    document.getElementById('task-name').value = t.name;
+    document.getElementById('task-name').readOnly = true;
+    document.getElementById('task-cron').value = t.cron;
+    document.getElementById('task-command').value = t.command;
+    document.getElementById('task-args').value = (t.Args||[]).join('\n');
+    document.getElementById('task-desc').value = t.description||'';
+    document.getElementById('task-timeout').value = (t.Timeout||'30m0s');
+    document.getElementById('task-enabled').checked = t.Enabled;
+    document.getElementById('task-proxy').checked = t.UseProxy;
+    document.getElementById('task-name').dataset.index = index;
+  } else {
+    document.getElementById('task-name').readOnly = false;
+    ['name','cron','command','args','desc'].forEach(id => document.getElementById('task-'+id).value = '');
+    document.getElementById('task-timeout').value = '30m0s';
+    document.getElementById('task-enabled').checked = true;
+    document.getElementById('task-proxy').checked = false;
+    document.getElementById('task-name').dataset.index = '';
+  }
+}
+
+async function saveTask() {
+  const mode = document.getElementById('task-form-mode').value;
+  const name = document.getElementById('task-name').value.trim();
+  const cron = document.getElementById('task-cron').value.trim();
+  const command = document.getElementById('task-command').value.trim();
+  const args = document.getElementById('task-args').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  const desc = document.getElementById('task-desc').value.trim();
+  const timeout = document.getElementById('task-timeout').value.trim() || '30m0s';
+  const enabled = document.getElementById('task-enabled').checked;
+  const useProxy = document.getElementById('task-proxy').checked;
+  if (!name||!cron||!command) { alert('名称、Cron 表达式和命令是必填项'); return; }
+  const body = {name, cron, command, args, description:desc, timeout, enabled, use_proxy:useProxy};
+  try {
+    if (mode === 'add') {
+      await api('/api/tasks', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    } else {
+      await api('/api/tasks/'+encodeURIComponent(name), {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    }
+    document.getElementById('modal-task').classList.remove('open');
+    loadTasks();
+  } catch(e) { alert('操作失败: ' + e.message); }
+}
+
+function editTask(i) { openTaskModal('edit', i); }
+async function toggleTask(i) {
+  const t = tasks[i];
+  try {
+    await api('/api/tasks/'+encodeURIComponent(t.name), {
+      method:'PUT', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({name:t.name, cron:t.cron, command:t.command, enabled:!t.Enabled, use_proxy:t.UseProxy})
+    });
+    loadTasks();
+  } catch(e) { alert('操作失败: ' + e.message); }
+}
+async function deleteTask(i) {
+  const t = tasks[i];
+  if (!confirm('确认删除任务 "' + t.name + '"？')) return;
+  try {
+    await api('/api/tasks/'+encodeURIComponent(t.name), {method:'DELETE'});
+    loadTasks();
+  } catch(e) { alert('删除失败: ' + e.message); }
+}
+
+document.getElementById('btn-add-task').addEventListener('click', () => openTaskModal('add'));
+document.getElementById('btn-modal-cancel').addEventListener('click', () => document.getElementById('modal-task').classList.remove('open'));
+document.getElementById('btn-modal-save').addEventListener('click', saveTask);
+document.getElementById('modal-task').addEventListener('click', function(e) { if (e.target===this) this.classList.remove('open'); });
+
+// ===== Executions =====
+async function loadExecutions() {
+  try {
+    const tasks = await api('/api/tasks');
+    const filter = document.getElementById('exec-task-filter');
+    const prev = filter.value;
+    filter.innerHTML = '<option value="">全部任务</option>' + tasks.map(t => `<option value="${esc(t.Name)}">${esc(t.Name)}</option>`).join('');
+    filter.value = prev;
+    const name = filter.value ? '&name='+encodeURIComponent(filter.value) : '';
+    const limit = document.getElementById('exec-limit').value;
+    const st = document.getElementById('exec-status-filter').value;
+    let url = '/api/executions?n=' + limit;
+    if (filter.value) url = '/api/tasks/'+encodeURIComponent(filter.value)+'/executions?n='+limit;
+    let execs = await api(url);
+    if (st) execs = execs.filter(e => e.status === st);
+    if (!execs.length) {
+      document.getElementById('exec-table').innerHTML = '<div class="empty">暂无执行记录</div>';
+      return;
+    }
+    let rows = '';
+    execs.forEach(e => {
+      rows += `<tr><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(e.task_name)}">${esc(e.task_name)}</td>
+        <td>${fmtTime(e.start_time)}</td><td>${fmtTime(e.end_time)}</td><td>${fmtDur(e.start_time,e.end_time)}</td>
+        <td>${statusBadge(e.status)}</td><td style="color:var(--red);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(e.error||'')}">${esc(e.error||'')}</td>
+        <td class="output-cell">${esc(e.output||'')}</td></tr>`;
+    });
+    document.getElementById('exec-table').innerHTML = `<table><thead><tr><th>任务</th><th>开始</th><th>结束</th><th>耗时</th><th>状态</th><th>错误</th><th>输出</th></tr></thead><tbody>${rows}</tbody></table>`;
+    updateRefreshTime();
+  } catch(e) { console.error(e); }
+}
+
+document.getElementById('exec-task-filter').addEventListener('change', loadExecutions);
+document.getElementById('exec-status-filter').addEventListener('change', loadExecutions);
+document.getElementById('exec-limit').addEventListener('change', loadExecutions);
+
+// ===== Logs =====
+async function loadLogs() {
+  try {
+    const limit = document.getElementById('log-limit').value;
+    const level = document.getElementById('log-level-filter').value;
+    let lines = await api('/api/logs?n='+limit);
+    if (level) {
+      lines = lines.filter(l => l.includes(' '+level+': '));
+    }
+    const container = document.getElementById('log-container');
+    if (!lines.length) {
+      container.innerHTML = '<span style="color:var(--text-muted)">暂无日志</span>';
+      return;
+    }
+    container.innerHTML = lines.map(l => {
+      let cls = '';
+      if (l.includes(' DEBUG: ')) cls = 'log-debug';
+      else if (l.includes(' INFO: ')) cls = 'log-info';
+      else if (l.includes(' WARN: ')) cls = 'log-warn';
+      else if (l.includes(' ERROR: ')) cls = 'log-error';
+      return `<div class="${cls}">${esc(l)}</div>`;
+    }).join('');
+    container.scrollTop = container.scrollHeight;
+    updateRefreshTime();
+  } catch(e) { console.error(e); }
+}
+
+document.getElementById('log-level-filter').addEventListener('change', loadLogs);
+document.getElementById('log-limit').addEventListener('change', loadLogs);
+document.getElementById('btn-log-refresh').addEventListener('click', loadLogs);
+
+// ===== Refresh =====
+function updateRefreshTime() {
+  document.getElementById('refresh-time').textContent = new Date().toLocaleTimeString('zh-CN', {hour12:false});
+}
+
+function autoRefresh() {
+  const active = document.querySelector('.tab-content.active');
+  if (active) refreshCurrentTab(active.id.replace('tab-', ''));
+}
+
+// Load initial data
+loadOverview();
+refreshTimer = setInterval(autoRefresh, 30000);
+</script>
+</body>
+</html>

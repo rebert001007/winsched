@@ -25,7 +25,7 @@ func (ws *winService) Execute(args []string, r <-chan svc.ChangeRequest, changes
 	ws.scheduler.Start()
 
 	if ws.config.API.Enabled {
-		ws.apiServer = NewAPIServer(ws.config, ws.configPath, ws.scheduler, ws.logger)
+		ws.apiServer = NewAPIServer(ws.config, ws.configPath, ws.scheduler, ws.logger, ws.config.Logging.File)
 		ws.apiServer.Start()
 	}
 
@@ -63,7 +63,7 @@ func runInteractive(configPath string, logger *Logger) {
 	sched.Start()
 
 	if cfg.API.Enabled {
-		api := NewAPIServer(cfg, configPath, sched, logger)
+		api := NewAPIServer(cfg, configPath, sched, logger, cfg.Logging.File)
 		api.Start()
 	}
 

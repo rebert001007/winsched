@@ -16,12 +16,26 @@ type Scheduler struct {
 	execStore *ExecutionStore
 	mu        sync.Mutex
 	entries   map[string]cron.EntryID // task name → cron entry ID
+	notifier  *TelegramNotifier
 }
 
 // NewScheduler creates a scheduler and registers all enabled tasks from config.
 func NewScheduler(cfg *Config, logger *Logger) *Scheduler {
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		loc = time.Local
+	}
+	var notifier *TelegramNotifier
+	if cfg.Telegram.Enabled {
+		notifier = NewTelegramNotifier(cfg.Telegram, cfg.Proxy, logger)
+		if notifier != nil {
+			logger.Info("Telegram notifications enabled (chat_id=%s)", cfg.Telegram.ChatID)
+		}
+	}
+
 	s := &Scheduler{
 		cron: cron.New(
+			cron.WithLocation(loc),
 			cron.WithParser(cron.NewParser(
 				cron.Minute|cron.Hour|cron.Dom|cron.Month|cron.Dow|cron.Descriptor,
 			)),
@@ -30,6 +44,7 @@ func NewScheduler(cfg *Config, logger *Logger) *Scheduler {
 		proxy:     cfg.Proxy,
 		execStore: NewExecutionStore(200),
 		entries:   make(map[string]cron.EntryID),
+		notifier:  notifier,
 	}
 
 	for _, task := range cfg.Tasks {
@@ -52,8 +67,16 @@ func (s *Scheduler) makeFunc(task TaskConfig) func() {
 	t := task
 	return func() {
 		s.logger.Info("Executing task %q: %s", t.Name, t.Command)
+		startedAt := time.Now()
+
+		if s.notifier != nil {
+			s.notifier.SendStart(t.Name, t.Cron)
+		}
+
 		idx := s.execStore.RecordStart(t.Name)
 		output, err := RunTask(t, s.proxy, s.logger)
+		duration := time.Since(startedAt).Round(time.Second).String()
+
 		if err != nil {
 			s.logger.Error("%v", err)
 			status := StatusFailed
@@ -61,9 +84,17 @@ func (s *Scheduler) makeFunc(task TaskConfig) func() {
 				status = StatusTimeout
 			}
 			s.execStore.RecordEnd(idx, status, err.Error(), output)
+
+			if s.notifier != nil {
+				s.notifier.SendFailure(t.Name, duration, string(status), err.Error())
+			}
 		} else {
 			s.logger.Info("Task %q completed", t.Name)
 			s.execStore.RecordEnd(idx, StatusSuccess, "", output)
+
+			if s.notifier != nil {
+				s.notifier.SendSuccess(t.Name, duration, output)
+			}
 		}
 	}
 }
