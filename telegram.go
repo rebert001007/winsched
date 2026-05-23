@@ -45,15 +45,15 @@ func NewTelegramNotifier(cfg TelegramConfig, proxy ProxyConfig, logger *Logger) 
 }
 
 func (n *TelegramNotifier) SendStart(taskName, cronExpr string) {
-	n.send(FormatStartMessage(taskName, cronExpr, time.Now()))
+	n.send(FormatStartMessage(taskName, cronExpr, time.Now().In(beijingLoc)))
 }
 
 func (n *TelegramNotifier) SendSuccess(taskName, duration, output string) {
-	n.send(FormatSuccessMessage(taskName, duration, output, time.Now()))
+	n.send(FormatSuccessMessage(taskName, duration, output, time.Now().In(beijingLoc)))
 }
 
 func (n *TelegramNotifier) SendFailure(taskName, duration, status, errMsg string) {
-	n.send(FormatFailureMessage(taskName, duration, status, errMsg, time.Now()))
+	n.send(FormatFailureMessage(taskName, duration, status, errMsg, time.Now().In(beijingLoc)))
 }
 
 func (n *TelegramNotifier) send(text string) {

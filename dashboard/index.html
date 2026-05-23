@@ -88,6 +88,31 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 .output-cell { max-width: 400px; font-family: var(--mono); font-size: 11px; white-space: pre-wrap; word-break: break-all; max-height: 60px; overflow: hidden; color: var(--text-muted); }
 /* Empty state */
 .empty { text-align: center; padding: 48px; color: var(--text-muted); font-size: 14px; }
+/* Task name link */
+.task-name-link { color: var(--accent); cursor: pointer; font-weight: 600; text-decoration: none; }
+.task-name-link:hover { text-decoration: underline; }
+/* Detail panel (slide-over) */
+.detail-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 200; }
+.detail-overlay.open { display: block; }
+.detail-panel { position: fixed; top: 0; right: 0; width: 720px; max-width: 100%; height: 100%; background: var(--surface); border-left: 1px solid var(--border); z-index: 201; overflow-y: auto; padding: 24px; }
+.detail-panel .dp-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+.detail-panel .dp-header h2 { font-size: 18px; }
+.detail-panel .dp-header .dp-close { background: none; border: none; color: var(--text-muted); font-size: 20px; cursor: pointer; padding: 4px 8px; border-radius: 4px; }
+.detail-panel .dp-header .dp-close:hover { color: var(--text); background: rgba(255,255,255,0.05); }
+.detail-panel .dp-meta { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; font-size: 12px; color: var(--text-muted); }
+.detail-panel .dp-meta code { background: rgba(255,255,255,0.05); padding: 3px 8px; border-radius: 4px; font-size: 12px; }
+.detail-panel .dp-section-title { font-size: 13px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+.detail-panel .dp-item { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; overflow: hidden; }
+.detail-panel .dp-item-hd { display: flex; align-items: center; gap: 10px; padding: 10px 14px; cursor: pointer; user-select: none; transition: background 0.15s; }
+.detail-panel .dp-item-hd:hover { background: rgba(255,255,255,0.03); }
+.detail-panel .dp-item-hd .expand-icon { color: var(--text-muted); font-size: 10px; transition: transform 0.2s; flex-shrink: 0; }
+.detail-panel .dp-item.open .dp-item-hd .expand-icon { transform: rotate(90deg); }
+.detail-panel .dp-item-hd .dp-time { font-size: 11px; color: var(--text-muted); min-width: 140px; white-space: nowrap; }
+.detail-panel .dp-item-body { display: none; padding: 0 14px 14px; }
+.detail-panel .dp-item.open .dp-item-body { display: block; }
+.detail-panel .dp-output { font-family: var(--mono); font-size: 11px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; background: #0a0c12; border-radius: 4px; padding: 12px; max-height: 400px; overflow-y: auto; color: #c0c4cf; }
+.detail-panel .dp-error { color: var(--red); font-size: 12px; margin-bottom: 8px; }
+.detail-panel .dp-empty-output { color: var(--text-muted); font-style: italic; }
 /* Responsive */
 @media (max-width: 768px) {
   main { padding: 16px; }
@@ -163,6 +188,30 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   </div>
 </main>
 
+<!-- Task Detail Panel -->
+<div class="detail-overlay" id="detail-overlay">
+  <div class="detail-panel" id="detail-panel">
+    <div class="dp-header">
+      <h2 id="dp-task-name">--</h2>
+      <button class="dp-close" id="btn-detail-close">&times;</button>
+    </div>
+    <div class="dp-meta" id="dp-meta"></div>
+    <div class="dp-section-title">执行日志</div>
+    <div class="filters" style="margin-bottom:12px">
+      <select id="dp-status-filter">
+        <option value="">全部状态</option>
+        <option value="running">运行中</option>
+        <option value="success">成功</option>
+        <option value="failed">失败</option>
+        <option value="timeout">超时</option>
+      </select>
+      <input type="number" id="dp-log-limit" value="50" min="10" max="1000" style="width:80px" title="条数">
+      <button class="btn btn-sm" id="btn-dp-refresh">刷新</button>
+    </div>
+    <div id="dp-log-list"><div class="empty">加载中...</div></div>
+  </div>
+</div>
+
 <!-- Task Form Modal -->
 <div class="modal-overlay" id="modal-task">
   <div class="modal">
@@ -187,6 +236,7 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 // ===== State =====
 const API = '';
 let tasks = [];
+let detailTaskName = '';
 let refreshTimer;
 
 // ===== Utils =====
@@ -256,7 +306,7 @@ async function loadOverview() {
     const top10 = execs.slice(0, 10);
     let rows = '';
     top10.forEach(e => {
-      rows += `<tr><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(e.task_name)}">${esc(e.task_name)}</td>
+      rows += `<tr><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span class="task-name-link" onclick="showTaskDetail('${esc(e.task_name)}')" title="查看执行日志">${esc(e.task_name)}</span></td>
         <td>${fmtTime(e.start_time)}</td><td>${fmtTime(e.end_time)}</td>
         <td>${fmtDur(e.start_time,e.end_time)}</td><td>${statusBadge(e.status)}</td>
         <td class="output-cell">${esc(e.error||e.output||'')}</td></tr>`;
@@ -279,7 +329,7 @@ async function loadTasks() {
     let rows = '';
     tasks.forEach((t, i) => {
       rows += `<tr>
-        <td style="font-weight:600">${esc(t.Name)}</td>
+        <td style="font-weight:600"><span class="task-name-link" onclick="showTaskDetail('${esc(t.Name)}')" title="查看执行日志">${esc(t.Name)}</span></td>
         <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(t.Description||'')}">${esc(t.Description||'--')}</td>
         <td><code style="font-family:var(--mono);font-size:12px;background:rgba(255,255,255,0.05);padding:2px 6px;border-radius:4px">${esc(t.Cron)}</code></td>
         <td style="font-family:var(--mono);font-size:12px">${esc(t.Command)}</td>
@@ -379,7 +429,6 @@ async function loadExecutions() {
     const prev = filter.value;
     filter.innerHTML = '<option value="">全部任务</option>' + tasks.map(t => `<option value="${esc(t.Name)}">${esc(t.Name)}</option>`).join('');
     filter.value = prev;
-    const name = filter.value ? '&name='+encodeURIComponent(filter.value) : '';
     const limit = document.getElementById('exec-limit').value;
     const st = document.getElementById('exec-status-filter').value;
     let url = '/api/executions?n=' + limit;
@@ -392,7 +441,7 @@ async function loadExecutions() {
     }
     let rows = '';
     execs.forEach(e => {
-      rows += `<tr><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(e.task_name)}">${esc(e.task_name)}</td>
+      rows += `<tr><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span class="task-name-link" onclick="showTaskDetail('${esc(e.task_name)}')" title="查看执行日志">${esc(e.task_name)}</span></td>
         <td>${fmtTime(e.start_time)}</td><td>${fmtTime(e.end_time)}</td><td>${fmtDur(e.start_time,e.end_time)}</td>
         <td>${statusBadge(e.status)}</td><td style="color:var(--red);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(e.error||'')}">${esc(e.error||'')}</td>
         <td class="output-cell">${esc(e.output||'')}</td></tr>`;
@@ -436,6 +485,81 @@ async function loadLogs() {
 document.getElementById('log-level-filter').addEventListener('change', loadLogs);
 document.getElementById('log-limit').addEventListener('change', loadLogs);
 document.getElementById('btn-log-refresh').addEventListener('click', loadLogs);
+
+// ===== Task Detail Panel =====
+async function showTaskDetail(name) {
+  detailTaskName = name;
+  document.getElementById('detail-overlay').classList.add('open');
+  document.getElementById('dp-task-name').textContent = name;
+  document.getElementById('dp-status-filter').value = '';
+  await loadTaskDetail();
+}
+
+async function loadTaskDetail() {
+  const name = detailTaskName;
+  if (!name) return;
+  try {
+    // Find task config for meta info
+    const task = tasks.find(t => t.Name === name);
+    if (task) {
+      document.getElementById('dp-meta').innerHTML = `
+        <span>命令: <code>${esc(task.Command)} ${esc((task.Args||[]).join(' '))}</code></span>
+        <span>Cron: <code>${esc(task.Cron)}</code></span>
+        <span>状态: ${task.Enabled ? '<span class="badge badge-enabled">启用</span>' : '<span class="badge badge-disabled">禁用</span>'}</span>`;
+    }
+    const limit = parseInt(document.getElementById('dp-log-limit').value) || 50;
+    const st = document.getElementById('dp-status-filter').value;
+    let logs = await api('/api/tasks/' + encodeURIComponent(name) + '/logs?n=' + limit);
+    if (st) logs = logs.filter(e => e.status === st);
+    if (!logs.length) {
+      document.getElementById('dp-log-list').innerHTML = '<div class="empty">暂无执行记录</div>';
+      return;
+    }
+    let html = '';
+    logs.forEach((e, i) => {
+      const open = i === 0 ? ' open' : '';
+      const output = e.output || '';
+      const truncated = output.length > 200 ? output.substring(0, 200) + '...' : output;
+      html += `<div class="dp-item${open}">
+        <div class="dp-item-hd" onclick="this.parentElement.classList.toggle('open')">
+          <span class="expand-icon">▶</span>
+          <span class="dp-time">${fmtTime(e.start_time)}</span>
+          <span>${statusBadge(e.status)}</span>
+          <span style="font-size:11px;color:var(--text-muted);margin-left:auto">${fmtDur(e.start_time,e.end_time)}</span>
+        </div>
+        <div class="dp-item-body">
+          ${e.error ? `<div class="dp-error">错误: ${esc(e.error)}</div>` : ''}
+          ${output ? `<div class="dp-output">${esc(output)}</div>` : '<div class="dp-empty-output">(无输出)</div>'}
+        </div></div>`;
+    });
+    document.getElementById('dp-log-list').innerHTML = html;
+  } catch(e) {
+    document.getElementById('dp-log-list').innerHTML = `<div class="empty">加载失败: ${esc(e.message)}</div>`;
+  }
+}
+
+function closeDetailPanel() {
+  document.getElementById('detail-overlay').classList.remove('open');
+  detailTaskName = '';
+}
+
+document.getElementById('btn-detail-close').addEventListener('click', closeDetailPanel);
+document.getElementById('detail-overlay').addEventListener('click', function(e) {
+  if (e.target === this) closeDetailPanel();
+});
+document.getElementById('btn-dp-refresh').addEventListener('click', loadTaskDetail);
+document.getElementById('dp-status-filter').addEventListener('change', loadTaskDetail);
+document.getElementById('dp-log-limit').addEventListener('change', loadTaskDetail);
+
+// Keyboard shortcut: Escape to close detail panel
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && document.getElementById('detail-overlay').classList.contains('open')) {
+    // Only close detail if no other modal is open
+    if (!document.getElementById('modal-task').classList.contains('open')) {
+      closeDetailPanel();
+    }
+  }
+});
 
 // ===== Refresh =====
 function updateRefreshTime() {

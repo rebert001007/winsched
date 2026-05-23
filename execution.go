@@ -1,9 +1,25 @@
 package main
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
+
+var beijingLoc *time.Location
+
+func init() {
+	var err error
+	beijingLoc, err = time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		beijingLoc = time.Local
+	}
+}
 
 // ExecStatus represents the outcome of a task execution.
 type ExecStatus string
@@ -15,8 +31,9 @@ const (
 	StatusTimeout ExecStatus = "timeout"
 )
 
-// ExecRecord holds the details of one task execution.
+// ExecRecord holds the summary details of one task execution.
 type ExecRecord struct {
+	ID        string     `json:"id"`
 	TaskName  string     `json:"task_name"`
 	StartTime time.Time  `json:"start_time"`
 	EndTime   time.Time  `json:"end_time,omitempty"`
@@ -25,95 +42,269 @@ type ExecRecord struct {
 	Output    string     `json:"output,omitempty"`
 }
 
-// ExecutionStore keeps a fixed-size ring buffer of execution records.
-type ExecutionStore struct {
-	mu       sync.Mutex
-	records  []ExecRecord
-	capacity int
-	cursor   int // next write position
-	count    int // total written (for ordering)
+// --- Logs directory ---
+
+var logsDir string
+
+// SetLogsDir sets the directory for execution log files and creates it if needed.
+func SetLogsDir(dir string) {
+	logsDir = dir
+	os.MkdirAll(dir, 0755)
 }
 
-// NewExecutionStore creates a store holding up to capacity records.
-func NewExecutionStore(capacity int) *ExecutionStore {
-	return &ExecutionStore{
-		records:  make([]ExecRecord, capacity),
-		capacity: capacity,
-	}
-}
+// --- Running entries ---
 
-// RecordStart registers the start of an execution and returns the ring index
-// where the record should be finalized.
-func (s *ExecutionStore) RecordStart(taskName string) int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+var (
+	runningMu sync.Mutex
+	running   = map[string]*TaskLogEntry{} // key: taskName/execID
+)
 
-	idx := s.cursor
-	s.cursor = (s.cursor + 1) % s.capacity
-	s.count++
+func runKey(taskName, id string) string { return taskName + "/" + id }
 
-	s.records[idx] = ExecRecord{
-		TaskName:  taskName,
-		StartTime: time.Now(),
+// RecordStart generates an execution ID and records a running entry.
+func RecordStart(taskName string) string {
+	id := nextExecID()
+	runningMu.Lock()
+	running[runKey(taskName, id)] = &TaskLogEntry{
+		ID:        id,
+		StartTime: time.Now().In(beijingLoc),
 		Status:    StatusRunning,
 	}
-	return idx
+	runningMu.Unlock()
+	return id
 }
 
-// RecordEnd finalizes the execution record at the given ring index.
-func (s *ExecutionStore) RecordEnd(idx int, status ExecStatus, errMsg, output string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+// RecordEnd writes the completed execution to a file and removes the running entry.
+func RecordEnd(taskName, id string, status ExecStatus, errMsg, output string) {
+	now := time.Now().In(beijingLoc)
 
-	r := &s.records[idx]
-	r.EndTime = time.Now()
-	r.Status = status
-	r.Error = errMsg
-	if len(output) > 256 {
-		output = output[:256] + "..."
+	runningMu.Lock()
+	k := runKey(taskName, id)
+	var startTime time.Time
+	if e, ok := running[k]; ok {
+		startTime = e.StartTime
+		delete(running, k)
 	}
-	r.Output = output
+	runningMu.Unlock()
+
+	entry := TaskLogEntry{
+		ID:        id,
+		StartTime: startTime,
+		EndTime:   now,
+		Status:    status,
+		Error:     errMsg,
+		Output:    output,
+	}
+	writeLogFile(taskName, id, entry)
 }
 
-// Latest returns the most recent n execution records (all tasks).
-func (s *ExecutionStore) Latest(n int) []ExecRecord {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+// --- File paths ---
 
-	return s.collect(n, nil)
+func taskLogDir(taskName string) string {
+	return filepath.Join(logsDir, sanitizePath(taskName))
 }
 
-// ByTask returns the most recent n execution records for a specific task name.
-func (s *ExecutionStore) ByTask(name string, n int) []ExecRecord {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func logFilePath(taskName, id string) string {
+	return filepath.Join(taskLogDir(taskName), id+".json")
+}
 
-	return s.collect(n, func(r *ExecRecord) bool {
-		return r.TaskName == name
+func sanitizePath(name string) string {
+	r := strings.NewReplacer(
+		"<", "_", ">", "_", ":", "_", "\"", "_",
+		"/", "_", "\\", "_", "|", "_", "?", "_", "*", "_",
+	)
+	return r.Replace(name)
+}
+
+// --- File I/O ---
+
+func writeLogFile(taskName, id string, entry TaskLogEntry) {
+	dir := taskLogDir(taskName)
+	os.MkdirAll(dir, 0755)
+	f, err := os.Create(logFilePath(taskName, id))
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	json.NewEncoder(f).Encode(entry)
+}
+
+func readLogFileRaw(taskName, id string) (*TaskLogEntry, error) {
+	f, err := os.Open(logFilePath(taskName, id))
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	var e TaskLogEntry
+	if err := json.NewDecoder(f).Decode(&e); err != nil {
+		return nil, err
+	}
+	return &e, nil
+}
+
+// --- Scanning ---
+
+// listTaskIDs returns all execution IDs in a task dir, sorted newest-first (by numeric ID).
+func listTaskIDs(taskName string) []string {
+	dir := taskLogDir(taskName)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	ids := make([]string, 0, len(entries))
+	for _, e := range entries {
+		name := e.Name()
+		if !strings.HasSuffix(name, ".json") {
+			continue
+		}
+		ids = append(ids, name[:len(name)-5])
+	}
+	sort.Slice(ids, func(i, j int) bool {
+		a, _ := strconv.Atoi(ids[i])
+		b, _ := strconv.Atoi(ids[j])
+		return a > b
 	})
+	return ids
 }
 
-func (s *ExecutionStore) collect(n int, filter func(*ExecRecord) bool) []ExecRecord {
+// --- List functions ---
+
+// ListExecutions returns recent N execution records across all tasks.
+func ListExecutions(n int) []ExecRecord {
 	if n <= 0 {
 		n = 20
 	}
-	if n > s.capacity {
-		n = s.capacity
+	// Collect all task dirs, then collect files with IDs for sorting.
+	type entry struct {
+		taskName string
+		id       string
+		idNum    int
+	}
+	var all []entry
+	taskDirs, _ := os.ReadDir(logsDir)
+	for _, td := range taskDirs {
+		if !td.IsDir() {
+			continue
+		}
+		for _, id := range listTaskIDs(td.Name()) {
+			num, _ := strconv.Atoi(id)
+			all = append(all, entry{taskName: td.Name(), id: id, idNum: num})
+		}
+	}
+	sort.Slice(all, func(i, j int) bool { return all[i].idNum > all[j].idNum })
+	if n > len(all) {
+		n = len(all)
 	}
 
+	result := make([]ExecRecord, 0, n+len(running))
+
+	// Prepend running entries.
+	runningMu.Lock()
+	for k, e := range running {
+		taskName := k
+		if idx := strings.LastIndex(k, "/"); idx >= 0 {
+			taskName = k[:idx]
+		}
+		result = append(result, ExecRecord{
+			ID:        e.ID,
+			TaskName:  taskName,
+			StartTime: e.StartTime,
+			Status:    StatusRunning,
+		})
+	}
+	runningMu.Unlock()
+
+	for i := 0; i < n; i++ {
+		e, err := readLogFileRaw(all[i].taskName, all[i].id)
+		if err != nil {
+			continue
+		}
+		out := e.Output
+		if len(out) > 256 {
+			out = out[:256] + "..."
+		}
+		result = append(result, ExecRecord{
+			ID:        e.ID,
+			TaskName:  all[i].taskName,
+			StartTime: e.StartTime,
+			EndTime:   e.EndTime,
+			Status:    e.Status,
+			Error:     e.Error,
+			Output:    out,
+		})
+	}
+
+	return result
+}
+
+// ListExecutionsByTask returns recent N execution records for a task.
+func ListExecutionsByTask(taskName string, n int) []ExecRecord {
+	if n <= 0 {
+		n = 20
+	}
+	ids := listTaskIDs(taskName)
+	if n > len(ids) {
+		n = len(ids)
+	}
 	result := make([]ExecRecord, 0, n)
-	// Walk from newest (cursor-1) backwards.
-	for i := 0; i < s.capacity && len(result) < n; i++ {
-		idx := (s.cursor - 1 - i + s.capacity) % s.capacity
-		if s.records[idx].TaskName == "" {
+	for i := 0; i < n; i++ {
+		e, err := readLogFileRaw(taskName, ids[i])
+		if err != nil {
 			continue
 		}
-		if filter != nil && !filter(&s.records[idx]) {
+		out := e.Output
+		if len(out) > 256 {
+			out = out[:256] + "..."
+		}
+		result = append(result, ExecRecord{
+			ID:        e.ID,
+			TaskName:  taskName,
+			StartTime: e.StartTime,
+			EndTime:   e.EndTime,
+			Status:    e.Status,
+			Error:     e.Error,
+			Output:    out,
+		})
+	}
+	return result
+}
+
+// ListTaskLogs returns recent N full log entries for a task.
+func ListTaskLogs(taskName string, n int) []TaskLogEntry {
+	if n <= 0 {
+		n = 20
+	}
+	ids := listTaskIDs(taskName)
+	if n > len(ids) {
+		n = len(ids)
+	}
+	result := make([]TaskLogEntry, 0, n)
+	for i := 0; i < n; i++ {
+		e, err := readLogFileRaw(taskName, ids[i])
+		if err != nil {
 			continue
 		}
-		// Copy to avoid data race with future writes.
-		rec := s.records[idx]
-		result = append(result, rec)
+		result = append(result, *e)
+	}
+	return result
+}
+
+// RunningRecords returns currently executing entries as ExecRecords.
+func RunningRecords() []ExecRecord {
+	runningMu.Lock()
+	defer runningMu.Unlock()
+	var result []ExecRecord
+	for k, e := range running {
+		taskName := k
+		if idx := strings.LastIndex(k, "/"); idx >= 0 {
+			taskName = k[:idx]
+		}
+		result = append(result, ExecRecord{
+			ID:        e.ID,
+			TaskName:  taskName,
+			StartTime: e.StartTime,
+			Status:    StatusRunning,
+		})
 	}
 	return result
 }

@@ -67,7 +67,7 @@ func (l *Logger) log(level LogLevel, format string, args ...any) {
 	}
 
 	msg := fmt.Sprintf(format, args...)
-	line := fmt.Sprintf("[%s] %s: %s\n", time.Now().Format("2006-01-02 15:04:05"), level, msg)
+	line := fmt.Sprintf("[%s] %s: %s\n", time.Now().In(beijingLoc).Format("2006-01-02 15:04:05"), level, msg)
 
 	l.mu.Lock()
 	defer l.mu.Unlock()

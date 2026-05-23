@@ -77,3 +77,8 @@ func run(configPath string) {
 		}
 	}
 }
+
+func initStorage(configDir string) {
+	SetLogsDir(filepath.Join(configDir, "logs"))
+	InitExecID()
+}

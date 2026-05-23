@@ -1,6 +1,8 @@
 package main
 
 import (
+	"path/filepath"
+
 	"golang.org/x/sys/windows/svc"
 )
 
@@ -20,6 +22,7 @@ func (ws *winService) Execute(args []string, r <-chan svc.ChangeRequest, changes
 
 	changes <- svc.Status{State: svc.StartPending}
 
+	initStorage(filepath.Dir(ws.configPath))
 	ws.config = LoadConfig(ws.configPath, ws.logger)
 	ws.scheduler = NewScheduler(ws.config, ws.logger)
 	ws.scheduler.Start()
@@ -58,6 +61,7 @@ func (ws *winService) Execute(args []string, r <-chan svc.ChangeRequest, changes
 
 // runInteractive runs the service in foreground (debug/terminal mode).
 func runInteractive(configPath string, logger *Logger) {
+	initStorage(filepath.Dir(configPath))
 	cfg := LoadConfig(configPath, logger)
 	sched := NewScheduler(cfg, logger)
 	sched.Start()

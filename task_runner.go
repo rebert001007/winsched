@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-const maxOutputLen = 1024
+const maxOutputLen = 256 * 1024
 const maxProxyWait = 30 * time.Second
 const proxyRetryInterval = 2 * time.Second
 

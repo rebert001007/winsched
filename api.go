@@ -39,6 +39,7 @@ func NewAPIServer(cfg *Config, configPath string, sched *Scheduler, logger *Logg
 	mux.HandleFunc("DELETE /api/tasks/{name}", a.handleDeleteTask)
 	mux.HandleFunc("GET /api/executions", a.handleExecutions)
 	mux.HandleFunc("GET /api/tasks/{name}/executions", a.handleTaskExecutions)
+	mux.HandleFunc("GET /api/tasks/{name}/logs", a.handleTaskLogs)
 	mux.HandleFunc("GET /api/logs", HandleLogs(logFilePath))
 	mux.HandleFunc("GET /", DashboardHandler())
 
@@ -163,7 +164,7 @@ func (a *APIServer) handleExecutions(w http.ResponseWriter, r *http.Request) {
 	if v := r.URL.Query().Get("n"); v != "" {
 		fmt.Sscanf(v, "%d", &n)
 	}
-	writeOK(w, a.sched.ExecStore().Latest(n))
+	writeOK(w, ListExecutions(n))
 }
 
 func (a *APIServer) handleTaskExecutions(w http.ResponseWriter, r *http.Request) {
@@ -176,7 +177,20 @@ func (a *APIServer) handleTaskExecutions(w http.ResponseWriter, r *http.Request)
 	if v := r.URL.Query().Get("n"); v != "" {
 		fmt.Sscanf(v, "%d", &n)
 	}
-	writeOK(w, a.sched.ExecStore().ByTask(name, n))
+	writeOK(w, ListExecutionsByTask(name, n))
+}
+
+func (a *APIServer) handleTaskLogs(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if name == "" {
+		writeError(w, http.StatusBadRequest, "task name is required")
+		return
+	}
+	n := 20
+	if v := r.URL.Query().Get("n"); v != "" {
+		fmt.Sscanf(v, "%d", &n)
+	}
+	writeOK(w, ListTaskLogs(name, n))
 }
 
 func (a *APIServer) handleUpdateTask(w http.ResponseWriter, r *http.Request) {

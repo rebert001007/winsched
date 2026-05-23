@@ -10,21 +10,16 @@ import (
 
 // Scheduler manages cron-based task execution.
 type Scheduler struct {
-	cron      *cron.Cron
-	logger    *Logger
-	proxy     ProxyConfig
-	execStore *ExecutionStore
-	mu        sync.Mutex
-	entries   map[string]cron.EntryID // task name → cron entry ID
-	notifier  *TelegramNotifier
+	cron     *cron.Cron
+	logger   *Logger
+	proxy    ProxyConfig
+	mu       sync.Mutex
+	entries  map[string]cron.EntryID // task name → cron entry ID
+	notifier *TelegramNotifier
 }
 
 // NewScheduler creates a scheduler and registers all enabled tasks from config.
 func NewScheduler(cfg *Config, logger *Logger) *Scheduler {
-	loc, err := time.LoadLocation("Asia/Shanghai")
-	if err != nil {
-		loc = time.Local
-	}
 	var notifier *TelegramNotifier
 	if cfg.Telegram.Enabled {
 		notifier = NewTelegramNotifier(cfg.Telegram, cfg.Proxy, logger)
@@ -35,16 +30,15 @@ func NewScheduler(cfg *Config, logger *Logger) *Scheduler {
 
 	s := &Scheduler{
 		cron: cron.New(
-			cron.WithLocation(loc),
+			cron.WithLocation(beijingLoc),
 			cron.WithParser(cron.NewParser(
 				cron.Minute|cron.Hour|cron.Dom|cron.Month|cron.Dow|cron.Descriptor,
 			)),
 		),
-		logger:    logger,
-		proxy:     cfg.Proxy,
-		execStore: NewExecutionStore(200),
-		entries:   make(map[string]cron.EntryID),
-		notifier:  notifier,
+		logger:   logger,
+		proxy:    cfg.Proxy,
+		entries:  make(map[string]cron.EntryID),
+		notifier: notifier,
 	}
 
 	for _, task := range cfg.Tasks {
@@ -59,9 +53,6 @@ func NewScheduler(cfg *Config, logger *Logger) *Scheduler {
 	return s
 }
 
-// ExecStore returns the execution history store (for API access).
-func (s *Scheduler) ExecStore() *ExecutionStore { return s.execStore }
-
 // makeFunc builds the cron execution closure for a task.
 func (s *Scheduler) makeFunc(task TaskConfig) func() {
 	t := task
@@ -73,7 +64,7 @@ func (s *Scheduler) makeFunc(task TaskConfig) func() {
 			s.notifier.SendStart(t.Name, t.Cron)
 		}
 
-		idx := s.execStore.RecordStart(t.Name)
+		execID := RecordStart(t.Name)
 		output, err := RunTask(t, s.proxy, s.logger)
 		duration := time.Since(startedAt).Round(time.Second).String()
 
@@ -83,14 +74,14 @@ func (s *Scheduler) makeFunc(task TaskConfig) func() {
 			if IsTimeout(err) {
 				status = StatusTimeout
 			}
-			s.execStore.RecordEnd(idx, status, err.Error(), output)
+			RecordEnd(t.Name, execID, status, err.Error(), output)
 
 			if s.notifier != nil {
 				s.notifier.SendFailure(t.Name, duration, string(status), err.Error())
 			}
 		} else {
 			s.logger.Info("Task %q completed", t.Name)
-			s.execStore.RecordEnd(idx, StatusSuccess, "", output)
+			RecordEnd(t.Name, execID, StatusSuccess, "", output)
 
 			if s.notifier != nil {
 				s.notifier.SendSuccess(t.Name, duration, output)
