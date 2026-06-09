@@ -2,3 +2,7 @@
 *.exe~
 *.test
 .DS_Store
+
+# Runtime data
+/logs/
+/service.log

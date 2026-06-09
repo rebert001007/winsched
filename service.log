@@ -1,8 +1,0 @@
-[2026-06-09 09:51:43] INFO: Telegram notifications enabled (chat_id=-5231009610)
-[2026-06-09 09:51:43] INFO: Registered task "football-daily-news-incremental": cron="27,57 * * * *" command=pwsh.exe timeout=30m0s
-[2026-06-09 09:51:43] INFO: Registered task "football-daily-dongqiudi-matches": cron="5 1 * * *" command=pwsh.exe timeout=30m0s
-[2026-06-09 09:51:43] INFO: Registered task "football-daily-morning-report": cron="20 7 * * *" command=pwsh.exe timeout=30m0s
-[2026-06-09 09:51:43] INFO: Registered task "football-daily-unfinalized-squad-watch": cron="0 8 * * *" command=pwsh.exe timeout=30m0s
-[2026-06-09 09:51:43] INFO: Registered task "football-daily-evening-report": cron="0 17 * * *" command=pwsh.exe timeout=30m0s
-[2026-06-09 09:51:43] INFO: API server listening on 127.0.0.1:15732
-[2026-06-09 09:51:43] INFO: WinSched running in interactive mode (5 tasks loaded)

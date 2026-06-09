@@ -1,1 +1,0 @@
-{"id":"722","start_time":"2026-06-07T02:27:01.3776913+08:00","end_time":"2026-06-07T02:31:11.1902497+08:00","status":"failed","error":"task \"football-daily-news-incremental\" failed: exit status 0x40010004","output":"[2026-06-07 02:27:02 CST] Start half-hourly incremental news sync days=1 slot_key=2026-06-07-02-00\r\n"}
