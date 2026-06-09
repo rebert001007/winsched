@@ -3,9 +3,23 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"gopkg.in/yaml.v3"
 )
+
+// exeDir is the directory containing the winsched executable.
+// All config, log, and data paths default to locations under this directory.
+var exeDir string
+
+func init() {
+	exe, err := os.Executable()
+	if err != nil {
+		exeDir = `C:\ProgramData\winsched`
+	} else {
+		exeDir = filepath.Dir(exe)
+	}
+}
 
 // Config is the top-level configuration.
 type Config struct {
@@ -57,7 +71,7 @@ type TaskConfig struct {
 func DefaultConfig() *Config {
 	return &Config{
 		Logging: LoggingConfig{
-			File:  `C:\ProgramData\winsched\service.log`,
+			File:  filepath.Join(exeDir, "service.log"),
 			Level: "info",
 		},
 		API: APIConfig{

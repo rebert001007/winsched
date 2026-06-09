@@ -52,8 +52,8 @@ func (n *TelegramNotifier) SendSuccess(taskName, duration, output string) {
 	n.send(FormatSuccessMessage(taskName, duration, output, time.Now().In(beijingLoc)))
 }
 
-func (n *TelegramNotifier) SendFailure(taskName, duration, status, errMsg string) {
-	n.send(FormatFailureMessage(taskName, duration, status, errMsg, time.Now().In(beijingLoc)))
+func (n *TelegramNotifier) SendFailure(taskName, duration, status, errMsg, output string) {
+	n.send(FormatFailureMessage(taskName, duration, status, errMsg, output, time.Now().In(beijingLoc)))
 }
 
 func (n *TelegramNotifier) send(text string) {
@@ -93,20 +93,15 @@ func FormatStartMessage(taskName, cronExpr string, now time.Time) string {
 // FormatSuccessMessage builds the HTML message for task success.
 func FormatSuccessMessage(taskName, duration, output string, now time.Time) string {
 	ts := now.Format("2006-01-02 15:04:05")
-	msg := fmt.Sprintf("✅ <b>WinSched</b> — Task Completed\n\n"+
+	return fmt.Sprintf("✅ <b>WinSched</b> — Task Completed\n\n"+
 		"Task: <code>%s</code>\n"+
 		"Duration: %s\n"+
 		"Finished: <code>%s</code>",
 		html.EscapeString(taskName), duration, ts)
-	if output != "" {
-		out := truncate(output, 1024)
-		msg += fmt.Sprintf("\n\nOutput:\n<code>%s</code>", html.EscapeString(out))
-	}
-	return msg
 }
 
 // FormatFailureMessage builds the HTML message for task failure/timeout.
-func FormatFailureMessage(taskName, duration, status, errMsg string, now time.Time) string {
+func FormatFailureMessage(taskName, duration, status, errMsg, output string, now time.Time) string {
 	icon := "❌"  // cross mark
 	label := "failed"
 	if status == "timeout" {
@@ -123,6 +118,10 @@ func FormatFailureMessage(taskName, duration, status, errMsg string, now time.Ti
 	if errMsg != "" {
 		err := truncate(errMsg, 1024)
 		msg += fmt.Sprintf("\n\nError:\n<code>%s</code>", html.EscapeString(err))
+	}
+	if output != "" {
+		out := truncate(output, 1024)
+		msg += fmt.Sprintf("\n\nOutput:\n<code>%s</code>", html.EscapeString(out))
 	}
 	return msg
 }

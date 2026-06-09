@@ -1,5 +1,5 @@
 logging:
-    file: C:\ProgramData\winsched\service.log
+    file: D:\codes\dev\winsched\service.log
     level: info
 api:
     port: 15732
@@ -12,20 +12,6 @@ telegram:
     chat_id: "-5231009610"
     enabled: true
 tasks:
-    - name: yueyao-morning-pipeline-slot1
-      description: Run YueYao TikTok slot 1 pipeline at 16:30 America/Los_Angeles.
-      cron: 30 7 * * *
-      command: pwsh.exe
-      args:
-        - -NoLogo
-        - -NoProfile
-        - -ExecutionPolicy
-        - Bypass
-        - -File
-        - D:\codes\dev\yueyao-tiktok-ops\scripts\pipeline\run_morning_slot1_winsched.ps1
-      timeout: 30m0s
-      enabled: true
-      use_proxy: false
     - name: football-daily-news-incremental
       description: Half-hourly incremental sync of Dongqiudi, Zhibo8, FIFA, and ESPN news. Each source syncs to std_news independently. Runs at :27 and :57 (3min before :00/:30).
       cron: 27,57 * * * *
@@ -68,20 +54,6 @@ tasks:
       timeout: 30m0s
       enabled: true
       use_proxy: false
-    - name: football-daily-worldcup-squads
-      description: Refresh World Cup squad snapshots at 07:00, 15:00, and 19:00 Beijing time.
-      cron: 0 7,15,19 * * *
-      command: pwsh.exe
-      args:
-        - -NoLogo
-        - -NoProfile
-        - -ExecutionPolicy
-        - Bypass
-        - -File
-        - D:\codes\dev\football-daily-wechat\scripts\run_squad_sync_winsched.ps1
-      timeout: 30m0s
-      enabled: true
-      use_proxy: false
     - name: football-daily-unfinalized-squad-watch
       description: Daily reminder to refresh unpublished-final World Cup squad announcement timing at 08:00 Beijing time.
       cron: 0 8 * * *
@@ -93,6 +65,20 @@ tasks:
         - Bypass
         - -File
         - D:\codes\dev\football-daily-wechat\scripts\run_unfinalized_squad_watch_winsched.ps1
+      timeout: 30m0s
+      enabled: true
+      use_proxy: false
+    - name: football-daily-evening-report
+      description: Generate Football Daily evening report daily at Beijing 17:00 (CST).
+      cron: 0 17 * * *
+      command: pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_evening_report_winsched.ps1
       timeout: 30m0s
       enabled: true
       use_proxy: false

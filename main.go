@@ -8,12 +8,9 @@ import (
 	"golang.org/x/sys/windows/svc"
 )
 
-const defaultConfigDir = `C:\ProgramData\winsched`
-const defaultConfigFile = defaultConfigDir + `\config.yaml`
-
 func main() {
 	action := "run"
-	configPath := defaultConfigFile
+	configPath := filepath.Join(exeDir, "config.yaml")
 
 	if len(os.Args) >= 2 {
 		action = os.Args[1]
@@ -59,11 +56,27 @@ func run(configPath string) {
 		os.MkdirAll(filepath.Dir(configPath), 0755)
 	}
 
-	logger, err := NewLogger(InfoLevel, defaultConfigDir+`\service.log`, isInteractive)
+	logger, err := NewLogger(InfoLevel, filepath.Join(exeDir, "service.log"), isInteractive)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Cannot create logger: %v\n", err)
 		os.Exit(1)
 	}
+	defer logger.Close()
+
+	instanceLock, alreadyRunning, err := acquireSingleInstanceLock()
+	if err != nil {
+		logger.Error("Cannot acquire single-instance lock: %v", err)
+		os.Exit(1)
+	}
+	if alreadyRunning {
+		logger.Warn("Another WinSched instance is already running; refusing to start")
+		os.Exit(1)
+	}
+	defer func() {
+		if err := instanceLock.Close(); err != nil {
+			logger.Warn("Cannot release single-instance lock: %v", err)
+		}
+	}()
 
 	ws := &winService{configPath: configPath, interactive: isInteractive, logger: logger}
 
@@ -72,7 +85,6 @@ func run(configPath string) {
 	} else {
 		if err := svc.Run("winsched", ws); err != nil {
 			logger.Error("Service failed: %v", err)
-			logger.Close()
 			os.Exit(1)
 		}
 	}

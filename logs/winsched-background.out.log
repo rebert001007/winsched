@@ -1,0 +1,75 @@
+[2026-06-08 01:24:23] INFO: Telegram notifications enabled (chat_id=-5231009610)
+[2026-06-08 01:24:23] INFO: Registered task "football-daily-news-incremental": cron="27,57 * * * *" command=pwsh.exe timeout=30m0s
+[2026-06-08 01:24:23] INFO: Registered task "football-daily-dongqiudi-matches": cron="5 1 * * *" command=pwsh.exe timeout=30m0s
+[2026-06-08 01:24:23] INFO: Registered task "football-daily-morning-report": cron="20 7 * * *" command=pwsh.exe timeout=30m0s
+[2026-06-08 01:24:23] INFO: Registered task "football-daily-unfinalized-squad-watch": cron="0 8 * * *" command=pwsh.exe timeout=30m0s
+[2026-06-08 01:24:23] INFO: Registered task "football-daily-evening-report": cron="0 17 * * *" command=pwsh.exe timeout=30m0s
+[2026-06-08 01:24:23] INFO: API server listening on 127.0.0.1:15732
+[2026-06-08 01:24:23] INFO: WinSched running in interactive mode (5 tasks loaded)
+[2026-06-08 01:27:00] INFO: Executing task "football-daily-news-incremental": pwsh.exe
+[2026-06-08 01:27:02] INFO: Task "football-daily-news-incremental" completed
+[2026-06-08 01:57:00] INFO: Executing task "football-daily-news-incremental": pwsh.exe
+[2026-06-08 02:02:18] INFO: Task "football-daily-news-incremental" completed
+[2026-06-08 07:37:48] INFO: Executing task "football-daily-news-incremental": pwsh.exe
+[2026-06-08 07:37:58] WARN: Telegram send failed: Post "https://api.telegram.org/bot8489938391:AAFB8DQEfmc8dBAYylwa-LIWSXd5_xOkvGg/sendMessage": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+[2026-06-08 07:46:33] INFO: Task "football-daily-news-incremental" completed
+[2026-06-08 08:07:48] INFO: Executing task "football-daily-morning-report": pwsh.exe
+[2026-06-08 08:07:48] INFO: Executing task "football-daily-news-incremental": pwsh.exe
+[2026-06-08 08:07:48] INFO: Executing task "football-daily-unfinalized-squad-watch": pwsh.exe
+[2026-06-08 08:07:50] INFO: Task "football-daily-unfinalized-squad-watch" completed
+[2026-06-08 08:16:01] ERROR: task "football-daily-morning-report" failed: exit status 1
+[2026-06-08 08:22:27] INFO: Task "football-daily-news-incremental" completed
+[2026-06-08 08:27:00] INFO: Executing task "football-daily-news-incremental": pwsh.exe
+[2026-06-08 08:27:01] INFO: Task "football-daily-news-incremental" completed
+[2026-06-08 08:57:00] INFO: Executing task "football-daily-news-incremental": pwsh.exe
+[2026-06-08 09:02:21] INFO: Task "football-daily-news-incremental" completed
+[2026-06-08 09:27:00] INFO: Executing task "football-daily-news-incremental": pwsh.exe
+[2026-06-08 09:32:30] INFO: Task "football-daily-news-incremental" completed
+[2026-06-08 09:57:00] INFO: Executing task "football-daily-news-incremental": pwsh.exe
+[2026-06-08 10:03:29] INFO: Task "football-daily-news-incremental" completed
+[2026-06-08 10:27:00] INFO: Executing task "football-daily-news-incremental": pwsh.exe
+[2026-06-08 10:34:27] INFO: Task "football-daily-news-incremental" completed
+[2026-06-08 10:57:00] INFO: Executing task "football-daily-news-incremental": pwsh.exe
+[2026-06-08 11:03:39] INFO: Task "football-daily-news-incremental" completed
+[2026-06-08 11:27:00] INFO: Executing task "football-daily-news-incremental": pwsh.exe
+[2026-06-08 11:34:56] INFO: Task "football-daily-news-incremental" completed
+[2026-06-08 11:57:00] INFO: Executing task "football-daily-news-incremental": pwsh.exe
+[2026-06-08 12:02:30] INFO: Task "football-daily-news-incremental" completed
+[2026-06-08 12:27:00] INFO: Executing task "football-daily-news-incremental": pwsh.exe
+[2026-06-08 12:32:16] INFO: Task "football-daily-news-incremental" completed
+[2026-06-08 12:57:00] INFO: Executing task "football-daily-news-incremental": pwsh.exe
+[2026-06-08 13:01:35] INFO: Task "football-daily-news-incremental" completed
+[2026-06-08 13:27:00] INFO: Executing task "football-daily-news-incremental": pwsh.exe
+[2026-06-08 13:32:25] INFO: Task "football-daily-news-incremental" completed
+[2026-06-08 13:57:00] INFO: Executing task "football-daily-news-incremental": pwsh.exe
+[2026-06-08 14:01:05] INFO: Task "football-daily-news-incremental" completed
+[2026-06-08 14:27:00] INFO: Executing task "football-daily-news-incremental": pwsh.exe
+[2026-06-08 14:31:00] INFO: Task "football-daily-news-incremental" completed
+[2026-06-08 14:57:00] INFO: Executing task "football-daily-news-incremental": pwsh.exe
+[2026-06-08 15:01:30] INFO: Task "football-daily-news-incremental" completed
+[2026-06-08 15:27:00] INFO: Executing task "football-daily-news-incremental": pwsh.exe
+[2026-06-08 15:32:04] INFO: Task "football-daily-news-incremental" completed
+[2026-06-08 15:57:00] INFO: Executing task "football-daily-news-incremental": pwsh.exe
+[2026-06-08 16:03:51] INFO: Task "football-daily-news-incremental" completed
+[2026-06-08 16:27:00] INFO: Executing task "football-daily-news-incremental": pwsh.exe
+[2026-06-08 16:27:10] WARN: Telegram send failed: Post "https://api.telegram.org/bot8489938391:AAFB8DQEfmc8dBAYylwa-LIWSXd5_xOkvGg/sendMessage": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+[2026-06-08 16:33:28] INFO: Task "football-daily-news-incremental" completed
+[2026-06-08 16:57:00] INFO: Executing task "football-daily-news-incremental": pwsh.exe
+[2026-06-08 17:00:00] INFO: Executing task "football-daily-evening-report": pwsh.exe
+[2026-06-08 17:00:06] ERROR: task "football-daily-evening-report" failed: exit status 1
+[2026-06-08 17:04:22] INFO: Task "football-daily-news-incremental" completed
+[2026-06-08 17:27:00] INFO: Executing task "football-daily-news-incremental": pwsh.exe
+[2026-06-08 17:34:35] INFO: Task "football-daily-news-incremental" completed
+[2026-06-08 17:57:00] INFO: Executing task "football-daily-news-incremental": pwsh.exe
+[2026-06-08 18:03:38] INFO: Task "football-daily-news-incremental" completed
+[2026-06-08 18:27:00] INFO: Executing task "football-daily-news-incremental": pwsh.exe
+[2026-06-08 18:32:20] INFO: Task "football-daily-news-incremental" completed
+[2026-06-08 18:57:00] INFO: Executing task "football-daily-news-incremental": pwsh.exe
+[2026-06-08 19:02:19] INFO: Task "football-daily-news-incremental" completed
+[2026-06-08 19:27:00] INFO: Executing task "football-daily-news-incremental": pwsh.exe
+[2026-06-08 19:32:04] INFO: Task "football-daily-news-incremental" completed
+[2026-06-08 19:57:00] INFO: Executing task "football-daily-news-incremental": pwsh.exe
+[2026-06-08 20:01:25] INFO: Task "football-daily-news-incremental" completed
+[2026-06-08 20:27:00] INFO: Executing task "football-daily-news-incremental": pwsh.exe
+[2026-06-08 20:32:33] INFO: Task "football-daily-news-incremental" completed
+[2026-06-08 20:57:00] INFO: Executing task "football-daily-news-incremental": pwsh.exe

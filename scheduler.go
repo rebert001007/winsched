@@ -77,7 +77,7 @@ func (s *Scheduler) makeFunc(task TaskConfig) func() {
 			RecordEnd(t.Name, execID, status, err.Error(), output)
 
 			if s.notifier != nil {
-				s.notifier.SendFailure(t.Name, duration, string(status), err.Error())
+				s.notifier.SendFailure(t.Name, duration, string(status), err.Error(), output)
 			}
 		} else {
 			s.logger.Info("Task %q completed", t.Name)

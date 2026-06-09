@@ -43,8 +43,11 @@ func TestFormatSuccessMessage(t *testing.T) {
 	if !strings.Contains(msg, "5m25s") {
 		t.Error("message should contain duration")
 	}
-	if !strings.Contains(msg, "hello world") {
-		t.Error("message should contain output")
+	if strings.Contains(msg, "hello world") {
+		t.Error("message should not contain output on success")
+	}
+	if strings.Contains(msg, "Output") {
+		t.Error("message should not contain Output section on success")
 	}
 	if !strings.Contains(msg, "✅") {
 		t.Error("message should contain success icon")
@@ -65,14 +68,14 @@ func TestFormatSuccessMessage_EscapesHTML(t *testing.T) {
 	if strings.Contains(msg, "<script>") && !strings.Contains(msg, "&lt;script&gt;") {
 		t.Error("HTML in task name should be escaped")
 	}
-	if strings.Contains(msg, "<tag>") && !strings.Contains(msg, "&lt;tag&gt;") {
-		t.Error("HTML in output should be escaped")
+	if strings.Contains(msg, "<tag>") {
+		t.Error("success message should not include output")
 	}
 }
 
 func TestFormatFailureMessage(t *testing.T) {
 	now := time.Date(2026, 5, 21, 9, 5, 0, 0, time.Local)
-	msg := FormatFailureMessage("daily-report", "5m0s", "failed", `task "daily-report" failed: exit status 1`, now)
+	msg := FormatFailureMessage("daily-report", "5m0s", "failed", `task "daily-report" failed: exit status 1`, "trace line 1\ntrace line 2", now)
 
 	if !strings.Contains(msg, "daily-report") {
 		t.Error("message should contain task name")
@@ -83,6 +86,9 @@ func TestFormatFailureMessage(t *testing.T) {
 	if !strings.Contains(msg, "exit status 1") {
 		t.Error("message should contain error text")
 	}
+	if !strings.Contains(msg, "trace line 1") {
+		t.Error("message should contain task output")
+	}
 	if !strings.Contains(msg, "❌") {
 		t.Error("message should contain failure icon for failed status")
 	}
@@ -90,7 +96,7 @@ func TestFormatFailureMessage(t *testing.T) {
 
 func TestFormatFailureMessage_Timeout(t *testing.T) {
 	now := time.Now()
-	msg := FormatFailureMessage("task1", "5m0s", "timeout", "timed out", now)
+	msg := FormatFailureMessage("task1", "5m0s", "timeout", "timed out", "", now)
 
 	if !strings.Contains(msg, "⏰") {
 		t.Error("timeout message should contain alarm clock icon")
@@ -102,7 +108,7 @@ func TestFormatFailureMessage_Timeout(t *testing.T) {
 
 func TestFormatFailureMessage_TruncatesLongError(t *testing.T) {
 	longErr := strings.Repeat("x", 2000)
-	msg := FormatFailureMessage("task", "1s", "failed", longErr, time.Now())
+	msg := FormatFailureMessage("task", "1s", "failed", longErr, "", time.Now())
 
 	if len(msg) > 2048 {
 		t.Errorf("message should not be excessively long, got %d chars", len(msg))
@@ -110,10 +116,13 @@ func TestFormatFailureMessage_TruncatesLongError(t *testing.T) {
 }
 
 func TestFormatFailureMessage_NoError(t *testing.T) {
-	msg := FormatFailureMessage("task", "1s", "failed", "", time.Now())
+	msg := FormatFailureMessage("task", "1s", "failed", "", "", time.Now())
 
 	if strings.Contains(msg, "Error:") {
 		t.Error("message should not contain Error section when errMsg is empty")
+	}
+	if strings.Contains(msg, "Output:") {
+		t.Error("message should not contain Output section when output is empty")
 	}
 }
 

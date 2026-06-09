@@ -50,7 +50,6 @@ func (ws *winService) Execute(args []string, r <-chan svc.ChangeRequest, changes
 				}
 				ws.scheduler.Stop()
 				ws.logger.Info("WinSched stopped")
-				ws.logger.Close()
 				return false, 0
 			default:
 				ws.logger.Warn("Unexpected control request: %d", c.Cmd)
