@@ -35,6 +35,7 @@ func NewAPIServer(cfg *Config, configPath string, sched *Scheduler, logger *Logg
 	mux.HandleFunc("GET /api/health", a.handleHealth)
 	mux.HandleFunc("GET /api/tasks", a.handleListTasks)
 	mux.HandleFunc("POST /api/tasks", a.handleAddTask)
+	mux.HandleFunc("POST /api/tasks/{name}/run", a.handleRunTask)
 	mux.HandleFunc("PUT /api/tasks/{name}", a.handleUpdateTask)
 	mux.HandleFunc("DELETE /api/tasks/{name}", a.handleDeleteTask)
 	mux.HandleFunc("GET /api/executions", a.handleExecutions)
@@ -191,6 +192,38 @@ func (a *APIServer) handleTaskLogs(w http.ResponseWriter, r *http.Request) {
 		fmt.Sscanf(v, "%d", &n)
 	}
 	writeOK(w, ListTaskLogs(name, n))
+}
+
+func (a *APIServer) handleRunTask(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if name == "" {
+		writeError(w, http.StatusBadRequest, "task name is required")
+		return
+	}
+
+	a.mu.Lock()
+	var task TaskConfig
+	found := false
+	for _, t := range a.config.Tasks {
+		if strings.EqualFold(t.Name, name) {
+			task = t
+			found = true
+			break
+		}
+	}
+	a.mu.Unlock()
+
+	if !found {
+		writeError(w, http.StatusNotFound, fmt.Sprintf("task %q not found", name))
+		return
+	}
+
+	if err := a.sched.RunNow(task); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	writeOK(w, map[string]string{"triggered": name})
 }
 
 func (a *APIServer) handleUpdateTask(w http.ResponseWriter, r *http.Request) {

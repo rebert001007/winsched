@@ -15,7 +15,7 @@ tasks:
     - name: football-daily-news-incremental
       description: Half-hourly incremental sync of Dongqiudi, Zhibo8, FIFA, and ESPN news. Each source syncs to std_news independently. Runs at :27 and :57 (3min before :00/:30).
       cron: 27,57 * * * *
-      command: pwsh.exe
+      command: C:/Program Files/WindowsApps/Microsoft.PowerShell_7.6.2.0_x64__8wekyb3d8bbwe/pwsh.exe
       args:
         - -NoLogo
         - -NoProfile
@@ -29,7 +29,7 @@ tasks:
     - name: football-daily-dongqiudi-matches
       description: Sync Dongqiudi important matches daily at Beijing 01:05 (CST) for Football Daily WeChat.
       cron: 5 1 * * *
-      command: pwsh.exe
+      command: C:/Program Files/WindowsApps/Microsoft.PowerShell_7.6.2.0_x64__8wekyb3d8bbwe/pwsh.exe
       args:
         - -NoLogo
         - -NoProfile
@@ -43,7 +43,7 @@ tasks:
     - name: football-daily-morning-report
       description: Generate Football Daily morning report prompt daily at Beijing 07:20 (CST).
       cron: 20 7 * * *
-      command: pwsh.exe
+      command: C:/Program Files/WindowsApps/Microsoft.PowerShell_7.6.2.0_x64__8wekyb3d8bbwe/pwsh.exe
       args:
         - -NoLogo
         - -NoProfile
@@ -57,7 +57,7 @@ tasks:
     - name: football-daily-unfinalized-squad-watch
       description: Daily reminder to refresh unpublished-final World Cup squad announcement timing at 08:00 Beijing time.
       cron: 0 8 * * *
-      command: pwsh.exe
+      command: C:/Program Files/WindowsApps/Microsoft.PowerShell_7.6.2.0_x64__8wekyb3d8bbwe/pwsh.exe
       args:
         - -NoLogo
         - -NoProfile
@@ -71,7 +71,7 @@ tasks:
     - name: football-daily-evening-report
       description: Generate Football Daily evening report daily at Beijing 17:00 (CST).
       cron: 0 17 * * *
-      command: pwsh.exe
+      command: C:/Program Files/WindowsApps/Microsoft.PowerShell_7.6.2.0_x64__8wekyb3d8bbwe/pwsh.exe
       args:
         - -NoLogo
         - -NoProfile

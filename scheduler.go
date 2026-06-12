@@ -175,6 +175,19 @@ func (s *Scheduler) HasTask(name string) bool {
 	return exists
 }
 
+// RunNow runs the given task immediately in a background goroutine,
+// independent of its cron schedule.
+func (s *Scheduler) RunNow(task TaskConfig) error {
+	if task.Name == "" {
+		return fmt.Errorf("task name is required")
+	}
+	if task.Command == "" {
+		return fmt.Errorf("command is required")
+	}
+	go s.makeFunc(task)()
+	return nil
+}
+
 // Start begins the cron scheduler.
 func (s *Scheduler) Start() {
 	s.cron.Start()
