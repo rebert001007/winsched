@@ -60,10 +60,6 @@ func (s *Scheduler) makeFunc(task TaskConfig) func() {
 		s.logger.Info("Executing task %q: %s", t.Name, t.Command)
 		startedAt := time.Now()
 
-		if s.notifier != nil {
-			s.notifier.SendStart(t.Name, t.Cron)
-		}
-
 		execID := RecordStart(t.Name)
 		output, err := RunTask(t, s.proxy, s.logger)
 		duration := time.Since(startedAt).Round(time.Second).String()
@@ -82,10 +78,6 @@ func (s *Scheduler) makeFunc(task TaskConfig) func() {
 		} else {
 			s.logger.Info("Task %q completed", t.Name)
 			RecordEnd(t.Name, execID, StatusSuccess, "", output)
-
-			if s.notifier != nil {
-				s.notifier.SendSuccess(t.Name, duration, output)
-			}
 		}
 	}
 }
