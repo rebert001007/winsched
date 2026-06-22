@@ -15,7 +15,7 @@ tasks:
     - name: football-daily-news-incremental
       description: Half-hourly incremental sync of Dongqiudi, Zhibo8, FIFA, and ESPN news. Each source syncs to std_news independently. Runs at :27 and :57 (3min before :00/:30).
       cron: 27,57 * * * *
-      command: C:/Program Files/WindowsApps/Microsoft.PowerShell_7.6.2.0_x64__8wekyb3d8bbwe/pwsh.exe
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
       args:
         - -NoLogo
         - -NoProfile
@@ -29,7 +29,7 @@ tasks:
     - name: football-daily-dongqiudi-matches
       description: Sync Dongqiudi important matches daily at Beijing 01:05 (CST) for Football Daily WeChat.
       cron: 5 1 * * *
-      command: C:/Program Files/WindowsApps/Microsoft.PowerShell_7.6.2.0_x64__8wekyb3d8bbwe/pwsh.exe
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
       args:
         - -NoLogo
         - -NoProfile
@@ -41,9 +41,9 @@ tasks:
       enabled: true
       use_proxy: false
     - name: football-daily-morning-report
-      description: Generate Football Daily morning report prompt daily at Beijing 07:20 (CST).
-      cron: 20 7 * * *
-      command: C:/Program Files/WindowsApps/Microsoft.PowerShell_7.6.2.0_x64__8wekyb3d8bbwe/pwsh.exe
+      description: Generate Football Daily morning report prompt daily at Beijing 07:00 (CST).
+      cron: 0 7 * * *
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
       args:
         - -NoLogo
         - -NoProfile
@@ -54,24 +54,10 @@ tasks:
       timeout: 30m0s
       enabled: true
       use_proxy: false
-    - name: football-daily-unfinalized-squad-watch
-      description: Daily reminder to refresh unpublished-final World Cup squad announcement timing at 08:00 Beijing time.
-      cron: 0 8 * * *
-      command: C:/Program Files/WindowsApps/Microsoft.PowerShell_7.6.2.0_x64__8wekyb3d8bbwe/pwsh.exe
-      args:
-        - -NoLogo
-        - -NoProfile
-        - -ExecutionPolicy
-        - Bypass
-        - -File
-        - D:\codes\dev\football-daily-wechat\scripts\run_unfinalized_squad_watch_winsched.ps1
-      timeout: 30m0s
-      enabled: true
-      use_proxy: false
     - name: football-daily-evening-report
       description: Generate Football Daily evening report daily at Beijing 17:00 (CST).
       cron: 0 17 * * *
-      command: C:/Program Files/WindowsApps/Microsoft.PowerShell_7.6.2.0_x64__8wekyb3d8bbwe/pwsh.exe
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
       args:
         - -NoLogo
         - -NoProfile
@@ -79,6 +65,34 @@ tasks:
         - Bypass
         - -File
         - D:\codes\dev\football-daily-wechat\scripts\run_evening_report_winsched.ps1
+      timeout: 30m0s
+      enabled: true
+      use_proxy: false
+    - name: football-daily-wc-group-results
+      description: Refresh World Cup group stage results from FIFA API, update predictions JSON, and deploy to Cloudflare Pages. Runs every 30 minutes at :10/:40 from 06:10 to 15:40 BJT during World Cup group stage.
+      cron: 10,40 6-15 * * *
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_wc_group_results_winsched.ps1
+      timeout: 30m0s
+      enabled: true
+      use_proxy: false
+    - name: football-daily-ssh-tunnel
+      description: Health-check and start the local SSH tunnel used as the fixed WeChat API proxy endpoint.
+      cron: '*/5 * * * *'
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_ssh_tunnel_proxy_winsched.ps1
       timeout: 30m0s
       enabled: true
       use_proxy: false
