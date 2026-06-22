@@ -74,6 +74,18 @@ func RecordStart(taskName string) string {
 	return id
 }
 
+// RecordOutput appends output to a running execution, keeping memory bounded.
+func RecordOutput(taskName, id, output string) {
+	if output == "" {
+		return
+	}
+	runningMu.Lock()
+	defer runningMu.Unlock()
+	if e, ok := running[runKey(taskName, id)]; ok {
+		e.Output = truncate(e.Output+output, maxTaskLogOutput)
+	}
+}
+
 // RecordEnd writes the completed execution to a file and removes the running entry.
 func RecordEnd(taskName, id string, status ExecStatus, errMsg, output string) {
 	now := time.Now().In(beijingLoc)
@@ -210,6 +222,7 @@ func ListExecutions(n int) []ExecRecord {
 			TaskName:  taskName,
 			StartTime: e.StartTime,
 			Status:    StatusRunning,
+			Output:    previewOutput(e.Output),
 		})
 	}
 	runningMu.Unlock()
@@ -219,10 +232,6 @@ func ListExecutions(n int) []ExecRecord {
 		if err != nil {
 			continue
 		}
-		out := e.Output
-		if len(out) > 256 {
-			out = out[:256] + "..."
-		}
 		result = append(result, ExecRecord{
 			ID:        e.ID,
 			TaskName:  all[i].taskName,
@@ -230,7 +239,7 @@ func ListExecutions(n int) []ExecRecord {
 			EndTime:   e.EndTime,
 			Status:    e.Status,
 			Error:     e.Error,
-			Output:    out,
+			Output:    previewOutput(e.Output),
 		})
 	}
 
@@ -246,15 +255,30 @@ func ListExecutionsByTask(taskName string, n int) []ExecRecord {
 	if n > len(ids) {
 		n = len(ids)
 	}
-	result := make([]ExecRecord, 0, n)
+	result := make([]ExecRecord, 0, n+len(running))
+	runningMu.Lock()
+	for k, e := range running {
+		name := k
+		if idx := strings.LastIndex(k, "/"); idx >= 0 {
+			name = k[:idx]
+		}
+		if name != taskName {
+			continue
+		}
+		result = append(result, ExecRecord{
+			ID:        e.ID,
+			TaskName:  taskName,
+			StartTime: e.StartTime,
+			Status:    StatusRunning,
+			Output:    previewOutput(e.Output),
+		})
+	}
+	runningMu.Unlock()
+
 	for i := 0; i < n; i++ {
 		e, err := readLogFileRaw(taskName, ids[i])
 		if err != nil {
 			continue
-		}
-		out := e.Output
-		if len(out) > 256 {
-			out = out[:256] + "..."
 		}
 		result = append(result, ExecRecord{
 			ID:        e.ID,
@@ -263,7 +287,7 @@ func ListExecutionsByTask(taskName string, n int) []ExecRecord {
 			EndTime:   e.EndTime,
 			Status:    e.Status,
 			Error:     e.Error,
-			Output:    out,
+			Output:    previewOutput(e.Output),
 		})
 	}
 	return result
@@ -278,7 +302,20 @@ func ListTaskLogs(taskName string, n int) []TaskLogEntry {
 	if n > len(ids) {
 		n = len(ids)
 	}
-	result := make([]TaskLogEntry, 0, n)
+	result := make([]TaskLogEntry, 0, n+len(running))
+	runningMu.Lock()
+	for k, e := range running {
+		name := k
+		if idx := strings.LastIndex(k, "/"); idx >= 0 {
+			name = k[:idx]
+		}
+		if name != taskName {
+			continue
+		}
+		result = append(result, *e)
+	}
+	runningMu.Unlock()
+
 	for i := 0; i < n; i++ {
 		e, err := readLogFileRaw(taskName, ids[i])
 		if err != nil {
@@ -304,7 +341,15 @@ func RunningRecords() []ExecRecord {
 			TaskName:  taskName,
 			StartTime: e.StartTime,
 			Status:    StatusRunning,
+			Output:    previewOutput(e.Output),
 		})
 	}
 	return result
+}
+
+func previewOutput(out string) string {
+	if len(out) > 256 {
+		return out[:256] + "..."
+	}
+	return out
 }

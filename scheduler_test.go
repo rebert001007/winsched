@@ -80,6 +80,64 @@ func TestScheduler_EnabledTask(t *testing.T) {
 	sched.Stop()
 }
 
+func TestScheduler_ResidentTaskDoesNotRegisterCron(t *testing.T) {
+	logger, _ := NewLogger(DebugLevel, "", false)
+	defer logger.Close()
+
+	cfg := &Config{
+		Tasks: []TaskConfig{
+			{
+				Name:            "resident-task",
+				Command:         "cmd.exe",
+				Args:            []string{"/c", "exit 0"},
+				Timeout:         0,
+				Enabled:         true,
+				Resident:        true,
+				RestartInterval: Duration(10 * time.Millisecond),
+			},
+		},
+	}
+
+	sched := NewScheduler(cfg, logger)
+	defer sched.Stop()
+
+	if got := len(sched.cron.Entries()); got != 0 {
+		t.Fatalf("expected resident task not to register cron entries, got %d", got)
+	}
+	if !sched.HasTask("resident-task") {
+		t.Fatal("resident task should be tracked by scheduler")
+	}
+}
+
+func TestScheduler_RemoveResidentTaskStopsTracking(t *testing.T) {
+	logger, _ := NewLogger(DebugLevel, "", false)
+	defer logger.Close()
+
+	sched := NewScheduler(&Config{}, logger)
+	task := TaskConfig{
+		Name:            "resident-remove",
+		Command:         "cmd.exe",
+		Args:            []string{"/c", "timeout /t 5 /nobreak >nul"},
+		Timeout:         0,
+		Enabled:         true,
+		Resident:        true,
+		RestartInterval: Duration(10 * time.Millisecond),
+	}
+	if err := sched.AddTask(task); err != nil {
+		t.Fatal(err)
+	}
+	if !sched.HasTask(task.Name) {
+		t.Fatal("resident task should be tracked before removal")
+	}
+	if err := sched.RemoveTask(task.Name); err != nil {
+		t.Fatal(err)
+	}
+	if sched.HasTask(task.Name) {
+		t.Fatal("resident task should not be tracked after removal")
+	}
+	sched.Stop()
+}
+
 func TestScheduler_TelegramNotifierNil(t *testing.T) {
 	logger, _ := NewLogger(DebugLevel, "", false)
 	defer logger.Close()

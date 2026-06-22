@@ -46,6 +46,20 @@ tasks:
     timeout: "5m"            # 超时时间
     enabled: true            # 是否启用
     use_proxy: false         # 是否在执行前验证代理可用
+    resident: false          # 是否为常驻任务
+    restart_interval: "10s"  # 常驻任务异常退出后的重启间隔
+
+  - name: "ssh-tunnel"
+    description: "常驻 SSH 隧道，异常退出后自动拉起"
+    command: "C:\\Users\\Reechard\\.codex\\bin\\PowerShell\\7\\pwsh.exe"
+    args:
+      - "-NoProfile"
+      - "-File"
+      - "C:\\scripts\\start-tunnel.ps1"
+    timeout: "0s"            # 0 表示不设置任务超时，适合长期进程
+    enabled: true
+    resident: true
+    restart_interval: "10s"
 ```
 
 ## Cron 表达式
@@ -89,7 +103,9 @@ Content-Type: application/json
   "args": ["/c", "echo hello"],
   "timeout": "30s",
   "enabled": true,
-  "use_proxy": false
+  "use_proxy": false,
+  "resident": false,
+  "restart_interval": "10s"
 }
 → {"ok":true,"data":{...created task...}}
 ```
@@ -139,6 +155,16 @@ print(r.json())
 ## Proxy 机制
 
 当任务设置 `use_proxy: true` 时，每次执行前会先 TCP 连接检测代理是否可达。如果不可达，每 2 秒重试一次，最长等待 30 秒。超时则跳过本次执行并记录错误日志。
+
+## 常驻任务
+
+当任务设置 `resident: true` 且 `enabled: true` 时，WinSched 会在调度器启动后立即拉起该命令。常驻任务不依赖 Cron，也可以不填写 `cron`。
+
+- 进程正常退出：记录成功，不自动重启。
+- 进程异常退出或超时：记录失败/超时，等待 `restart_interval` 后重新拉起。
+- `restart_interval` 默认 `10s`，用于避免异常快速重启。
+- `timeout: "0s"` 表示不设置任务超时，推荐用于真正长期运行的常驻进程。
+- 禁用、删除或更新常驻任务时，WinSched 会停止当前进程和守护循环。
 
 ## 命令行
 

@@ -23,8 +23,8 @@ func init() {
 
 // Config is the top-level configuration.
 type Config struct {
-	Logging LoggingConfig `yaml:"logging"`
-	API     APIConfig     `yaml:"api"`
+	Logging  LoggingConfig  `yaml:"logging"`
+	API      APIConfig      `yaml:"api"`
 	Proxy    ProxyConfig    `yaml:"proxy"`
 	Telegram TelegramConfig `yaml:"telegram"`
 	Tasks    []TaskConfig   `yaml:"tasks"`
@@ -57,14 +57,16 @@ type TelegramConfig struct {
 
 // TaskConfig defines a single scheduled task.
 type TaskConfig struct {
-	Name        string   `yaml:"name"`
-	Description string   `yaml:"description"`
-	Cron        string   `yaml:"cron"`
-	Command     string   `yaml:"command"`
-	Args        []string `yaml:"args"`
-	Timeout     Duration `yaml:"timeout"`
-	Enabled     bool     `yaml:"enabled"`
-	UseProxy    bool     `yaml:"use_proxy"`
+	Name            string   `yaml:"name" json:"name"`
+	Description     string   `yaml:"description" json:"description"`
+	Cron            string   `yaml:"cron" json:"cron"`
+	Command         string   `yaml:"command" json:"command"`
+	Args            []string `yaml:"args" json:"args"`
+	Timeout         Duration `yaml:"timeout" json:"timeout"`
+	Enabled         bool     `yaml:"enabled" json:"enabled"`
+	UseProxy        bool     `yaml:"use_proxy" json:"use_proxy"`
+	Resident        bool     `yaml:"resident" json:"resident"`
+	RestartInterval Duration `yaml:"restart_interval" json:"restart_interval"`
 }
 
 // DefaultConfig returns a Config with safe defaults and no tasks.
@@ -110,7 +112,14 @@ func LoadConfig(path string, logger *Logger) *Config {
 			cfg.Tasks[i].Name = fmt.Sprintf("unnamed-%d", i)
 		}
 		if cfg.Tasks[i].Timeout.ToGo() == 0 {
-			cfg.Tasks[i].Timeout = Duration(30 * 60 * 1e9) // 30 minutes
+			if cfg.Tasks[i].Resident {
+				cfg.Tasks[i].Timeout = 0
+			} else {
+				cfg.Tasks[i].Timeout = Duration(30 * 60 * 1e9) // 30 minutes
+			}
+		}
+		if cfg.Tasks[i].Resident && cfg.Tasks[i].RestartInterval.ToGo() == 0 {
+			cfg.Tasks[i].RestartInterval = Duration(10 * 1e9) // 10 seconds
 		}
 	}
 

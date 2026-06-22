@@ -224,6 +224,8 @@ tr:hover td { background: rgba(255,255,255,0.02); }
     <div class="form-group"><label>描述</label><input id="task-desc" placeholder="任务描述"></div>
     <div class="form-group"><label>超时时间</label><input id="task-timeout" placeholder="30m0s" value="30m0s"></div>
     <div class="form-group checkbox-row"><input type="checkbox" id="task-enabled" checked><label for="task-enabled" style="margin:0;cursor:pointer">启用</label></div>
+    <div class="form-group checkbox-row"><input type="checkbox" id="task-resident"><label for="task-resident" style="margin:0;cursor:pointer">常驻任务</label></div>
+    <div class="form-group"><label>异常重启间隔</label><input id="task-restart-interval" placeholder="10s" value="10s"></div>
     <div class="form-group checkbox-row"><input type="checkbox" id="task-proxy"><label for="task-proxy" style="margin:0;cursor:pointer">使用代理</label></div>
     <div class="actions">
       <button class="btn" id="btn-modal-cancel">取消</button>
@@ -238,6 +240,7 @@ const API = '';
 let tasks = [];
 let detailTaskName = '';
 let refreshTimer;
+let detailRefreshTimer;
 
 // ===== Utils =====
 async function api(url, opts) {
@@ -300,7 +303,7 @@ async function loadOverview() {
     const running = execs.filter(e => e.status === 'running').length;
     document.getElementById('stats-cards').innerHTML = `
       <div class="card"><div class="label">任务总数</div><div class="value">${tasks.length}</div></div>
-      <div class="card"><div class="label">已启用</div><div class="value green">${tasks.filter(t=>t.Enabled).length}</div></div>
+      <div class="card"><div class="label">已启用</div><div class="value green">${tasks.filter(t=>t.enabled).length}</div></div>
       <div class="card"><div class="label">24h 成功 / 失败 / 超时</div><div class="value green" style="font-size:22px">${succ} <span style="color:var(--red);font-size:22px">${fail}</span> <span style="color:var(--orange);font-size:22px">${timeo}</span></div></div>
       <div class="card"><div class="label">运行中</div><div class="value blue">${running}</div></div>`;
     const top10 = execs.slice(0, 10);
@@ -329,15 +332,15 @@ async function loadTasks() {
     let rows = '';
     tasks.forEach((t, i) => {
       rows += `<tr>
-        <td style="font-weight:600"><span class="task-name-link" onclick="showTaskDetail('${esc(t.Name)}')" title="查看执行日志">${esc(t.Name)}</span></td>
-        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(t.Description||'')}">${esc(t.Description||'--')}</td>
-        <td><code style="font-family:var(--mono);font-size:12px;background:rgba(255,255,255,0.05);padding:2px 6px;border-radius:4px">${esc(t.Cron)}</code></td>
-        <td style="font-family:var(--mono);font-size:12px">${esc(t.Command)}</td>
-        <td><span class="badge ${t.Enabled?'badge-enabled':'badge-disabled'}">${t.Enabled?'启用':'禁用'}</span></td>
+        <td style="font-weight:600"><span class="task-name-link" onclick="showTaskDetail('${esc(t.name)}')" title="查看执行日志">${esc(t.name)}</span></td>
+        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(t.description||'')}">${esc(t.description||'--')}</td>
+        <td>${t.resident ? '<span class="badge badge-running">常驻</span>' : `<code style="font-family:var(--mono);font-size:12px;background:rgba(255,255,255,0.05);padding:2px 6px;border-radius:4px">${esc(t.cron)}</code>`}</td>
+        <td style="font-family:var(--mono);font-size:12px">${esc(t.command)}</td>
+        <td><span class="badge ${t.enabled?'badge-enabled':'badge-disabled'}">${t.enabled?'启用':'禁用'}</span></td>
         <td>
           <div style="display:flex;gap:4px;flex-wrap:wrap">
             <button class="btn btn-xs" onclick="editTask(${i})" title="编辑">✎</button>
-            <button class="btn btn-xs" onclick="toggleTask(${i})" title="${t.Enabled?'禁用':'启用'}">${t.Enabled?'⊘':'▶'}</button>
+            <button class="btn btn-xs" onclick="toggleTask(${i})" title="${t.enabled?'禁用':'启用'}">${t.enabled?'⊘':'▶'}</button>
             <button class="btn btn-xs btn-danger" onclick="deleteTask(${i})" title="删除">✕</button>
           </div>
         </td></tr>`;
@@ -355,19 +358,23 @@ function openTaskModal(mode, index) {
     const t = tasks[index];
     document.getElementById('task-name').value = t.name;
     document.getElementById('task-name').readOnly = true;
-    document.getElementById('task-cron').value = t.cron;
-    document.getElementById('task-command').value = t.command;
-    document.getElementById('task-args').value = (t.Args||[]).join('\n');
+    document.getElementById('task-cron').value = t.cron || '';
+    document.getElementById('task-command').value = t.command || '';
+    document.getElementById('task-args').value = (t.args||[]).join('\n');
     document.getElementById('task-desc').value = t.description||'';
-    document.getElementById('task-timeout').value = (t.Timeout||'30m0s');
-    document.getElementById('task-enabled').checked = t.Enabled;
-    document.getElementById('task-proxy').checked = t.UseProxy;
+    document.getElementById('task-timeout').value = (t.timeout||'30m0s');
+    document.getElementById('task-enabled').checked = t.enabled;
+    document.getElementById('task-resident').checked = t.resident;
+    document.getElementById('task-restart-interval').value = t.restart_interval || '10s';
+    document.getElementById('task-proxy').checked = t.use_proxy;
     document.getElementById('task-name').dataset.index = index;
   } else {
     document.getElementById('task-name').readOnly = false;
     ['name','cron','command','args','desc'].forEach(id => document.getElementById('task-'+id).value = '');
     document.getElementById('task-timeout').value = '30m0s';
     document.getElementById('task-enabled').checked = true;
+    document.getElementById('task-resident').checked = false;
+    document.getElementById('task-restart-interval').value = '10s';
     document.getElementById('task-proxy').checked = false;
     document.getElementById('task-name').dataset.index = '';
   }
@@ -382,9 +389,11 @@ async function saveTask() {
   const desc = document.getElementById('task-desc').value.trim();
   const timeout = document.getElementById('task-timeout').value.trim() || '30m0s';
   const enabled = document.getElementById('task-enabled').checked;
+  const resident = document.getElementById('task-resident').checked;
+  const restartInterval = document.getElementById('task-restart-interval').value.trim() || '10s';
   const useProxy = document.getElementById('task-proxy').checked;
-  if (!name||!cron||!command) { alert('名称、Cron 表达式和命令是必填项'); return; }
-  const body = {name, cron, command, args, description:desc, timeout, enabled, use_proxy:useProxy};
+  if (!name||!command||(!resident&&!cron)) { alert('名称、命令必填；非常驻任务还需填写 Cron 表达式'); return; }
+  const body = {name, cron, command, args, description:desc, timeout, enabled, use_proxy:useProxy, resident, restart_interval:restartInterval};
   try {
     if (mode === 'add') {
       await api('/api/tasks', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
@@ -402,7 +411,7 @@ async function toggleTask(i) {
   try {
     await api('/api/tasks/'+encodeURIComponent(t.name), {
       method:'PUT', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({name:t.name, cron:t.cron, command:t.command, enabled:!t.Enabled, use_proxy:t.UseProxy})
+      body:JSON.stringify({name:t.name, cron:t.cron, command:t.command, args:t.args||[], description:t.description||'', timeout:t.timeout||'30m0s', enabled:!t.enabled, use_proxy:t.use_proxy, resident:t.resident, restart_interval:t.restart_interval||'10s'})
     });
     loadTasks();
   } catch(e) { alert('操作失败: ' + e.message); }
@@ -427,7 +436,7 @@ async function loadExecutions() {
     const tasks = await api('/api/tasks');
     const filter = document.getElementById('exec-task-filter');
     const prev = filter.value;
-    filter.innerHTML = '<option value="">全部任务</option>' + tasks.map(t => `<option value="${esc(t.Name)}">${esc(t.Name)}</option>`).join('');
+    filter.innerHTML = '<option value="">全部任务</option>' + tasks.map(t => `<option value="${esc(t.name)}">${esc(t.name)}</option>`).join('');
     filter.value = prev;
     const limit = document.getElementById('exec-limit').value;
     const st = document.getElementById('exec-status-filter').value;
@@ -492,6 +501,8 @@ async function showTaskDetail(name) {
   document.getElementById('detail-overlay').classList.add('open');
   document.getElementById('dp-task-name').textContent = name;
   document.getElementById('dp-status-filter').value = '';
+  if (detailRefreshTimer) clearInterval(detailRefreshTimer);
+  detailRefreshTimer = setInterval(loadTaskDetail, 2000);
   await loadTaskDetail();
 }
 
@@ -500,12 +511,14 @@ async function loadTaskDetail() {
   if (!name) return;
   try {
     // Find task config for meta info
-    const task = tasks.find(t => t.Name === name);
+    const task = tasks.find(t => t.name === name);
     if (task) {
       document.getElementById('dp-meta').innerHTML = `
-        <span>命令: <code>${esc(task.Command)} ${esc((task.Args||[]).join(' '))}</code></span>
-        <span>Cron: <code>${esc(task.Cron)}</code></span>
-        <span>状态: ${task.Enabled ? '<span class="badge badge-enabled">启用</span>' : '<span class="badge badge-disabled">禁用</span>'}</span>`;
+        <span>命令: <code>${esc(task.command)} ${esc((task.args||[]).join(' '))}</code></span>
+        <span>模式: ${task.resident ? '<span class="badge badge-running">常驻</span>' : '<span class="badge badge-enabled">定时</span>'}</span>
+        <span>Cron: <code>${esc(task.cron||'--')}</code></span>
+        ${task.resident ? `<span>异常重启间隔: <code>${esc(task.restart_interval||'10s')}</code></span>` : ''}
+        <span>状态: ${task.enabled ? '<span class="badge badge-enabled">启用</span>' : '<span class="badge badge-disabled">禁用</span>'}</span>`;
     }
     const limit = parseInt(document.getElementById('dp-log-limit').value) || 50;
     const st = document.getElementById('dp-status-filter').value;
@@ -541,6 +554,10 @@ async function loadTaskDetail() {
 function closeDetailPanel() {
   document.getElementById('detail-overlay').classList.remove('open');
   detailTaskName = '';
+  if (detailRefreshTimer) {
+    clearInterval(detailRefreshTimer);
+    detailRefreshTimer = null;
+  }
 }
 
 document.getElementById('btn-detail-close').addEventListener('click', closeDetailPanel);

@@ -115,7 +115,7 @@ func (a *APIServer) handleAddTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if task.Cron == "" {
+	if task.Cron == "" && !task.Resident {
 		writeError(w, http.StatusBadRequest, "cron expression is required")
 		return
 	}
@@ -127,7 +127,14 @@ func (a *APIServer) handleAddTask(w http.ResponseWriter, r *http.Request) {
 
 	// Apply defaults for optional fields.
 	if task.Timeout.ToGo() == 0 {
-		task.Timeout = Duration(30 * time.Minute)
+		if task.Resident {
+			task.Timeout = 0
+		} else {
+			task.Timeout = Duration(30 * time.Minute)
+		}
+	}
+	if task.Resident && task.RestartInterval.ToGo() == 0 {
+		task.RestartInterval = Duration(10 * time.Second)
 	}
 	if !task.Enabled {
 		writeError(w, http.StatusBadRequest, "enabled must be true for new tasks")
@@ -241,47 +248,73 @@ func (a *APIServer) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 
 	// Name from URL path overrides body.
 	task.Name = name
-	if task.Cron == "" && task.Command == "" {
+	if task.Cron == "" && task.Command == "" && !task.Resident {
 		writeError(w, http.StatusBadRequest, "cron or command is required for update")
 		return
 	}
 
 	if task.Timeout.ToGo() == 0 {
-		task.Timeout = Duration(30 * time.Minute)
+		if task.Resident {
+			task.Timeout = 0
+		} else {
+			task.Timeout = Duration(30 * time.Minute)
+		}
+	}
+	if task.Resident && task.RestartInterval.ToGo() == 0 {
+		task.RestartInterval = Duration(10 * time.Second)
 	}
 
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if err := a.sched.UpdateTask(task); err != nil {
-		writeError(w, http.StatusNotFound, err.Error())
-		return
-	}
-
-	// Update config.Tasks in-place.
+	foundIndex := -1
+	updatedTask := task
 	for i, t := range a.config.Tasks {
 		if strings.EqualFold(t.Name, name) {
-			if task.Cron != "" {
-				a.config.Tasks[i].Cron = task.Cron
+			foundIndex = i
+			updatedTask = t
+			if task.Cron != "" || task.Resident {
+				updatedTask.Cron = task.Cron
 			}
 			if task.Command != "" {
-				a.config.Tasks[i].Command = task.Command
+				updatedTask.Command = task.Command
 			}
 			if task.Description != "" {
-				a.config.Tasks[i].Description = task.Description
+				updatedTask.Description = task.Description
 			}
 			if task.Args != nil {
-				a.config.Tasks[i].Args = task.Args
+				updatedTask.Args = task.Args
 			}
-			if task.Timeout.ToGo() != 0 {
-				a.config.Tasks[i].Timeout = task.Timeout
-			}
-			a.config.Tasks[i].Enabled = task.Enabled
-			a.config.Tasks[i].UseProxy = task.UseProxy
+			updatedTask.Timeout = task.Timeout
+			updatedTask.Enabled = task.Enabled
+			updatedTask.UseProxy = task.UseProxy
+			updatedTask.Resident = task.Resident
+			updatedTask.RestartInterval = task.RestartInterval
 			break
 		}
 	}
 
+	if foundIndex < 0 {
+		writeError(w, http.StatusNotFound, fmt.Sprintf("task %q not found", name))
+		return
+	}
+
+	var schedErr error
+	if updatedTask.Enabled {
+		if a.sched.HasTask(name) {
+			schedErr = a.sched.UpdateTask(updatedTask)
+		} else {
+			schedErr = a.sched.AddTask(updatedTask)
+		}
+	} else if a.sched.HasTask(name) {
+		schedErr = a.sched.RemoveTask(name)
+	}
+	if schedErr != nil {
+		writeError(w, http.StatusBadRequest, schedErr.Error())
+		return
+	}
+
+	a.config.Tasks[foundIndex] = updatedTask
 	if err := SaveConfig(a.configPath, a.config); err != nil {
 		a.logger.Error("Failed to save config after updating task %q: %v", name, err)
 	} else {
@@ -301,8 +334,22 @@ func (a *APIServer) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if err := a.sched.RemoveTask(name); err != nil {
-		writeError(w, http.StatusNotFound, err.Error())
+	if a.sched.HasTask(name) {
+		if err := a.sched.RemoveTask(name); err != nil {
+			writeError(w, http.StatusNotFound, err.Error())
+			return
+		}
+	}
+
+	found := false
+	for _, t := range a.config.Tasks {
+		if strings.EqualFold(t.Name, name) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		writeError(w, http.StatusNotFound, fmt.Sprintf("task %q not found", name))
 		return
 	}
 

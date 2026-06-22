@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -52,6 +53,37 @@ tasks:
 	}
 	if cfg.Tasks[0].Timeout.ToGo().Minutes() != 2 {
 		t.Errorf("expected timeout 2m, got %v", cfg.Tasks[0].Timeout.ToGo())
+	}
+}
+
+func TestLoadConfig_ResidentDefaults(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	data := `
+tasks:
+  - name: resident-task
+    command: "cmd.exe"
+    args: ["/c", "exit 0"]
+    enabled: true
+    resident: true
+`
+	if err := os.WriteFile(path, []byte(data), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	logger, _ := NewLogger(InfoLevel, "", false)
+	cfg := LoadConfig(path, logger)
+	if len(cfg.Tasks) != 1 {
+		t.Fatalf("expected 1 task, got %d", len(cfg.Tasks))
+	}
+	if !cfg.Tasks[0].Resident {
+		t.Fatal("expected resident task")
+	}
+	if cfg.Tasks[0].Timeout.ToGo() != 0 {
+		t.Fatalf("expected resident timeout default to 0, got %v", cfg.Tasks[0].Timeout.ToGo())
+	}
+	if cfg.Tasks[0].RestartInterval.ToGo() != 10*time.Second {
+		t.Fatalf("expected restart interval default 10s, got %v", cfg.Tasks[0].RestartInterval.ToGo())
 	}
 }
 
