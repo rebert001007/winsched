@@ -36,6 +36,9 @@ func NewAPIServer(cfg *Config, configPath string, sched *Scheduler, logger *Logg
 	mux.HandleFunc("GET /api/tasks", a.handleListTasks)
 	mux.HandleFunc("POST /api/tasks", a.handleAddTask)
 	mux.HandleFunc("POST /api/tasks/{name}/run", a.handleRunTask)
+	mux.HandleFunc("POST /api/tasks/{name}/start", a.handleStartResidentTask)
+	mux.HandleFunc("POST /api/tasks/{name}/stop", a.handleStopResidentTask)
+	mux.HandleFunc("POST /api/tasks/{name}/restart", a.handleRestartResidentTask)
 	mux.HandleFunc("PUT /api/tasks/{name}", a.handleUpdateTask)
 	mux.HandleFunc("DELETE /api/tasks/{name}", a.handleDeleteTask)
 	mux.HandleFunc("GET /api/executions", a.handleExecutions)
@@ -201,6 +204,18 @@ func (a *APIServer) handleTaskLogs(w http.ResponseWriter, r *http.Request) {
 	writeOK(w, ListTaskLogs(name, n))
 }
 
+func (a *APIServer) findTask(name string) (TaskConfig, bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	for _, t := range a.config.Tasks {
+		if strings.EqualFold(t.Name, name) {
+			return t, true
+		}
+	}
+	return TaskConfig{}, false
+}
+
 func (a *APIServer) handleRunTask(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	if name == "" {
@@ -208,18 +223,7 @@ func (a *APIServer) handleRunTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.mu.Lock()
-	var task TaskConfig
-	found := false
-	for _, t := range a.config.Tasks {
-		if strings.EqualFold(t.Name, name) {
-			task = t
-			found = true
-			break
-		}
-	}
-	a.mu.Unlock()
-
+	task, found := a.findTask(name)
 	if !found {
 		writeError(w, http.StatusNotFound, fmt.Sprintf("task %q not found", name))
 		return
@@ -231,6 +235,99 @@ func (a *APIServer) handleRunTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeOK(w, map[string]string{"triggered": name})
+}
+
+func (a *APIServer) handleStartResidentTask(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if name == "" {
+		writeError(w, http.StatusBadRequest, "task name is required")
+		return
+	}
+
+	task, found := a.findTask(name)
+	if !found {
+		writeError(w, http.StatusNotFound, fmt.Sprintf("task %q not found", name))
+		return
+	}
+	if !task.Resident {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("task %q is not a resident task", name))
+		return
+	}
+	if !task.Enabled {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("task %q is disabled", name))
+		return
+	}
+
+	alreadyRunning, err := a.sched.StartResident(task)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	data := map[string]any{"started": name}
+	if alreadyRunning {
+		data["already_running"] = true
+	}
+	writeOK(w, data)
+}
+
+func (a *APIServer) handleStopResidentTask(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if name == "" {
+		writeError(w, http.StatusBadRequest, "task name is required")
+		return
+	}
+
+	task, found := a.findTask(name)
+	if !found {
+		writeError(w, http.StatusNotFound, fmt.Sprintf("task %q not found", name))
+		return
+	}
+	if !task.Resident {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("task %q is not a resident task", name))
+		return
+	}
+
+	alreadyStopped, err := a.sched.StopResident(task.Name)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	data := map[string]any{"stopped": name}
+	if alreadyStopped {
+		data["already_stopped"] = true
+	}
+	writeOK(w, data)
+}
+
+func (a *APIServer) handleRestartResidentTask(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if name == "" {
+		writeError(w, http.StatusBadRequest, "task name is required")
+		return
+	}
+
+	task, found := a.findTask(name)
+	if !found {
+		writeError(w, http.StatusNotFound, fmt.Sprintf("task %q not found", name))
+		return
+	}
+	if !task.Resident {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("task %q is not a resident task", name))
+		return
+	}
+	if !task.Enabled {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("task %q is disabled", name))
+		return
+	}
+
+	if err := a.sched.RestartResident(task); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	writeOK(w, map[string]string{"restarted": name})
 }
 
 func (a *APIServer) handleUpdateTask(w http.ResponseWriter, r *http.Request) {

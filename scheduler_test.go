@@ -138,6 +138,135 @@ func TestScheduler_RemoveResidentTaskStopsTracking(t *testing.T) {
 	sched.Stop()
 }
 
+func TestScheduler_StartStopRestartResidentTask(t *testing.T) {
+	logger, _ := NewLogger(DebugLevel, "", false)
+	defer logger.Close()
+
+	sched := NewScheduler(&Config{}, logger)
+	defer sched.Stop()
+
+	task := TaskConfig{
+		Name:            "resident-control",
+		Command:         "cmd.exe",
+		Args:            []string{"/c", "timeout /t 5 /nobreak >nul"},
+		Timeout:         0,
+		Enabled:         true,
+		Resident:        true,
+		RestartInterval: Duration(10 * time.Millisecond),
+	}
+
+	alreadyRunning, err := sched.StartResident(task)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if alreadyRunning {
+		t.Fatal("first start should not report already running")
+	}
+	if !sched.HasTask(task.Name) {
+		t.Fatal("resident task should be tracked after start")
+	}
+
+	alreadyRunning, err = sched.StartResident(task)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !alreadyRunning {
+		t.Fatal("second start should report already running")
+	}
+
+	if err := sched.RestartResident(task); err != nil {
+		t.Fatal(err)
+	}
+	if !sched.HasTask(task.Name) {
+		t.Fatal("resident task should be tracked after restart")
+	}
+
+	alreadyStopped, err := sched.StopResident(task.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if alreadyStopped {
+		t.Fatal("first stop should not report already stopped")
+	}
+	if sched.HasTask(task.Name) {
+		t.Fatal("resident task should not be tracked after stop")
+	}
+
+	alreadyStopped, err = sched.StopResident(task.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !alreadyStopped {
+		t.Fatal("second stop should report already stopped")
+	}
+}
+
+func TestScheduler_StartResidentAfterNormalExit(t *testing.T) {
+	logger, _ := NewLogger(DebugLevel, "", false)
+	defer logger.Close()
+
+	sched := NewScheduler(&Config{}, logger)
+	defer sched.Stop()
+
+	task := TaskConfig{
+		Name:            "resident-exit",
+		Command:         "cmd.exe",
+		Args:            []string{"/c", "exit 0"},
+		Timeout:         Duration(5 * time.Second),
+		Enabled:         true,
+		Resident:        true,
+		RestartInterval: Duration(10 * time.Millisecond),
+	}
+
+	alreadyRunning, err := sched.StartResident(task)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if alreadyRunning {
+		t.Fatal("first start should not report already running")
+	}
+
+	deadline := time.Now().Add(5 * time.Second)
+	for sched.HasTask(task.Name) && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if sched.HasTask(task.Name) {
+		t.Fatal("resident task should clear tracking after normal exit")
+	}
+
+	alreadyRunning, err = sched.StartResident(task)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if alreadyRunning {
+		t.Fatal("start after normal exit should not report already running")
+	}
+}
+
+func TestScheduler_ResidentControlsRejectScheduledTask(t *testing.T) {
+	logger, _ := NewLogger(DebugLevel, "", false)
+	defer logger.Close()
+
+	sched := NewScheduler(&Config{}, logger)
+	defer sched.Stop()
+
+	task := TaskConfig{
+		Name:    "scheduled-control",
+		Cron:    "@every 1h",
+		Command: "cmd.exe",
+		Args:    []string{"/c", "echo hello"},
+		Timeout: Duration(5 * time.Second),
+		Enabled: true,
+	}
+
+	if _, err := sched.StartResident(task); err == nil {
+		t.Fatal("expected StartResident to reject non-resident task")
+	}
+	if err := sched.RestartResident(task); err == nil {
+		t.Fatal("expected RestartResident to reject non-resident task")
+	}
+}
+
 func TestScheduler_TelegramNotifierNil(t *testing.T) {
 	logger, _ := NewLogger(DebugLevel, "", false)
 	defer logger.Close()

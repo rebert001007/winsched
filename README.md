@@ -119,6 +119,22 @@ Content-Type: application/json
 → {"ok":true,"data":{"updated":"my-task"}}
 ```
 
+### 常驻任务运行时控制
+```
+POST /api/tasks/{name}/start
+→ {"ok":true,"data":{"started":"my-task"}}
+→ {"ok":true,"data":{"already_running":true,"started":"my-task"}}
+
+POST /api/tasks/{name}/stop
+→ {"ok":true,"data":{"stopped":"my-task"}}
+→ {"ok":true,"data":{"already_stopped":true,"stopped":"my-task"}}
+
+POST /api/tasks/{name}/restart
+→ {"ok":true,"data":{"restarted":"my-task"}}
+```
+
+以上接口只控制当前运行中的常驻守护循环，不修改 `config.yaml`。`start` 和 `restart` 要求任务为 `resident: true` 且 `enabled: true`；`stop` 可停止已配置的常驻任务。
+
 ### 删除任务
 ```
 DELETE /api/tasks/{name}
@@ -164,6 +180,7 @@ print(r.json())
 - 进程异常退出或超时：记录失败/超时，等待 `restart_interval` 后重新拉起。
 - `restart_interval` 默认 `10s`，用于避免异常快速重启。
 - `timeout: "0s"` 表示不设置任务超时，推荐用于真正长期运行的常驻进程。
+- 可通过 `POST /api/tasks/{name}/start`、`/stop`、`/restart` 控制当前常驻守护循环，这些操作不修改配置文件。
 - 禁用、删除或更新常驻任务时，WinSched 会停止当前进程和守护循环。
 
 ## 命令行
