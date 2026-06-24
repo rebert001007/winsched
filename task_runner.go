@@ -88,8 +88,8 @@ func RunTaskWithContext(parent context.Context, cfg TaskConfig, proxy ProxyConfi
 		if hasTaskTimeout && ctx.Err() == context.DeadlineExceeded {
 			return out, fmt.Errorf("task %q timed out after %v", cfg.Name, cfg.Timeout.ToGo())
 		}
-		if parent.Err() != nil {
-			return out, fmt.Errorf("task %q canceled: %w", cfg.Name, parent.Err())
+		if ctx.Err() != nil {
+			return out, fmt.Errorf("task %q canceled: %w", cfg.Name, ctx.Err())
 		}
 		return out, fmt.Errorf("task %q failed: %w", cfg.Name, err)
 	}

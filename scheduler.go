@@ -22,8 +22,11 @@ type Scheduler struct {
 }
 
 type residentState struct {
-	id     uint64
-	cancel context.CancelFunc
+	id       uint64
+	cancel   context.CancelFunc
+	done     chan struct{}
+	stopping bool
+	next     *TaskConfig
 }
 
 // NewScheduler creates a scheduler and registers all enabled tasks from config.
@@ -117,14 +120,14 @@ func (s *Scheduler) startResidentLocked(task TaskConfig) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.nextResidentID++
 	id := s.nextResidentID
-	s.resident[task.Name] = residentState{id: id, cancel: cancel}
+	s.resident[task.Name] = residentState{id: id, cancel: cancel, done: make(chan struct{})}
 	go s.runResident(ctx, task, id)
 	s.logger.Info("Started resident task %q: command=%s restart_interval=%v timeout=%v",
 		task.Name, task.Command, task.RestartInterval.ToGo(), task.Timeout.ToGo())
 }
 
 func (s *Scheduler) runResident(ctx context.Context, task TaskConfig, id uint64) {
-	defer s.clearResidentIfCurrent(task.Name, id)
+	defer s.finishResidentIfCurrent(task.Name, id)
 
 	interval := task.RestartInterval.ToGo()
 	if interval <= 0 {
@@ -152,12 +155,16 @@ func (s *Scheduler) runResident(ctx context.Context, task TaskConfig, id uint64)
 	}
 }
 
-func (s *Scheduler) clearResidentIfCurrent(name string, id uint64) {
+func (s *Scheduler) finishResidentIfCurrent(name string, id uint64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if state, exists := s.resident[name]; exists && state.id == id {
+		close(state.done)
 		delete(s.resident, name)
+		if state.next != nil {
+			s.startResidentLocked(*state.next)
+		}
 	}
 }
 
@@ -179,12 +186,32 @@ func (s *Scheduler) removeTaskLocked(name string) error {
 
 func (s *Scheduler) stopResidentLocked(name string) bool {
 	if state, exists := s.resident[name]; exists {
+		if state.stopping {
+			state.next = nil
+			s.resident[name] = state
+			return true
+		}
+		state.stopping = true
+		state.next = nil
+		s.resident[name] = state
 		state.cancel()
-		delete(s.resident, name)
 		s.logger.Info("Stopped resident task %q", name)
 		return true
 	}
 	return false
+}
+
+func (s *Scheduler) restartResidentLocked(task TaskConfig) {
+	if state, exists := s.resident[task.Name]; exists {
+		next := task
+		state.stopping = true
+		state.next = &next
+		s.resident[task.Name] = state
+		state.cancel()
+		s.logger.Info("Restarting resident task %q after current instance exits", task.Name)
+		return
+	}
+	s.startResidentLocked(task)
 }
 
 // StartResident starts the resident supervisor for a task if it is not already running.
@@ -241,8 +268,7 @@ func (s *Scheduler) RestartResident(task TaskConfig) error {
 		return fmt.Errorf("task %q is registered as a scheduled task", task.Name)
 	}
 
-	s.stopResidentLocked(task.Name)
-	s.startResidentLocked(task)
+	s.restartResidentLocked(task)
 	return nil
 }
 
@@ -264,7 +290,7 @@ func (s *Scheduler) AddTask(task TaskConfig) error {
 		return fmt.Errorf("command is required")
 	}
 	if task.Resident {
-		s.startResidentLocked(task)
+		s.restartResidentLocked(task)
 		return nil
 	}
 	if task.Cron == "" {

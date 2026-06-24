@@ -42,7 +42,7 @@ func TestRunTaskWithContextZeroTimeoutUsesParentCancellation(t *testing.T) {
 	_, err := RunTaskWithContext(ctx, TaskConfig{
 		Name:    "cancel-test",
 		Command: "cmd.exe",
-		Args:    []string{"/c", "timeout /t 5 /nobreak >nul"},
+		Args:    []string{"/c", "ping -n 6 127.0.0.1 >nul"},
 		Timeout: 0,
 	}, ProxyConfig{}, logger, nil)
 	if err == nil {

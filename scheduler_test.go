@@ -117,7 +117,7 @@ func TestScheduler_RemoveResidentTaskStopsTracking(t *testing.T) {
 	task := TaskConfig{
 		Name:            "resident-remove",
 		Command:         "cmd.exe",
-		Args:            []string{"/c", "timeout /t 5 /nobreak >nul"},
+		Args:            []string{"/c", "ping -n 6 127.0.0.1 >nul"},
 		Timeout:         0,
 		Enabled:         true,
 		Resident:        true,
@@ -132,8 +132,8 @@ func TestScheduler_RemoveResidentTaskStopsTracking(t *testing.T) {
 	if err := sched.RemoveTask(task.Name); err != nil {
 		t.Fatal(err)
 	}
-	if sched.HasTask(task.Name) {
-		t.Fatal("resident task should not be tracked after removal")
+	if !sched.HasTask(task.Name) {
+		t.Fatal("resident task should stay reserved until removed process exits")
 	}
 	sched.Stop()
 }
@@ -148,7 +148,7 @@ func TestScheduler_StartStopRestartResidentTask(t *testing.T) {
 	task := TaskConfig{
 		Name:            "resident-control",
 		Command:         "cmd.exe",
-		Args:            []string{"/c", "timeout /t 5 /nobreak >nul"},
+		Args:            []string{"/c", "ping -n 6 127.0.0.1 >nul"},
 		Timeout:         0,
 		Enabled:         true,
 		Resident:        true,
@@ -174,13 +174,6 @@ func TestScheduler_StartStopRestartResidentTask(t *testing.T) {
 		t.Fatal("second start should report already running")
 	}
 
-	if err := sched.RestartResident(task); err != nil {
-		t.Fatal(err)
-	}
-	if !sched.HasTask(task.Name) {
-		t.Fatal("resident task should be tracked after restart")
-	}
-
 	alreadyStopped, err := sched.StopResident(task.Name)
 	if err != nil {
 		t.Fatal(err)
@@ -188,16 +181,8 @@ func TestScheduler_StartStopRestartResidentTask(t *testing.T) {
 	if alreadyStopped {
 		t.Fatal("first stop should not report already stopped")
 	}
-	if sched.HasTask(task.Name) {
-		t.Fatal("resident task should not be tracked after stop")
-	}
-
-	alreadyStopped, err = sched.StopResident(task.Name)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !alreadyStopped {
-		t.Fatal("second stop should report already stopped")
+	if !sched.HasTask(task.Name) {
+		t.Fatal("resident task should stay reserved until stopped process exits")
 	}
 }
 
@@ -240,6 +225,105 @@ func TestScheduler_StartResidentAfterNormalExit(t *testing.T) {
 	}
 	if alreadyRunning {
 		t.Fatal("start after normal exit should not report already running")
+	}
+}
+
+func TestScheduler_ResidentStopKeepsTaskReservedUntilExit(t *testing.T) {
+	logger, _ := NewLogger(DebugLevel, "", false)
+	defer logger.Close()
+
+	sched := NewScheduler(&Config{}, logger)
+	defer sched.Stop()
+
+	task := TaskConfig{
+		Name:            "resident-reserved",
+		Command:         "cmd.exe",
+		Args:            []string{"/c", "ping -n 6 127.0.0.1 >nul"},
+		Timeout:         0,
+		Enabled:         true,
+		Resident:        true,
+		RestartInterval: Duration(10 * time.Millisecond),
+	}
+
+	if alreadyRunning, err := sched.StartResident(task); err != nil || alreadyRunning {
+		t.Fatalf("start returned alreadyRunning=%v err=%v", alreadyRunning, err)
+	}
+	if alreadyStopped, err := sched.StopResident(task.Name); err != nil || alreadyStopped {
+		t.Fatalf("stop returned alreadyStopped=%v err=%v", alreadyStopped, err)
+	}
+	if !sched.HasTask(task.Name) {
+		t.Fatal("stopping resident task should remain reserved until process exits")
+	}
+
+	alreadyRunning, err := sched.StartResident(task)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !alreadyRunning {
+		t.Fatal("start while resident task is stopping should report already running")
+	}
+}
+
+func TestScheduler_RestartResidentQueuesStartUntilCurrentExit(t *testing.T) {
+	logger, _ := NewLogger(DebugLevel, "", false)
+	defer logger.Close()
+
+	sched := NewScheduler(&Config{}, logger)
+	defer sched.Stop()
+
+	cancelCalled := false
+	task := TaskConfig{
+		Name:            "resident-restart-queue",
+		Command:         "cmd.exe",
+		Args:            []string{"/c", "echo first"},
+		Timeout:         Duration(5 * time.Second),
+		Enabled:         true,
+		Resident:        true,
+		RestartInterval: Duration(10 * time.Millisecond),
+	}
+	sched.mu.Lock()
+	sched.nextResidentID = 2
+	sched.resident[task.Name] = residentState{
+		id: 2,
+		cancel: func() {
+			cancelCalled = true
+		},
+		done: make(chan struct{}),
+	}
+	sched.mu.Unlock()
+
+	restarted := task
+	restarted.Args = []string{"/c", "ping -n 6 127.0.0.1 >nul"}
+	if err := sched.RestartResident(restarted); err != nil {
+		t.Fatal(err)
+	}
+	if !cancelCalled {
+		t.Fatal("restart should cancel the current resident instance")
+	}
+
+	sched.mu.Lock()
+	state := sched.resident[task.Name]
+	if !state.stopping {
+		t.Fatal("restart should mark current resident instance as stopping")
+	}
+	if state.next == nil {
+		t.Fatal("restart should queue the next resident config")
+	}
+	if state.id != 2 {
+		t.Fatalf("restart should not start a new instance before current exits, got id %d", state.id)
+	}
+	sched.mu.Unlock()
+
+	sched.finishResidentIfCurrent(task.Name, 2)
+
+	sched.mu.Lock()
+	defer sched.mu.Unlock()
+	state, exists := sched.resident[task.Name]
+	if !exists {
+		t.Fatal("queued restart should start after current instance exits")
+	}
+	if state.id == 2 {
+		t.Fatal("queued restart should create a new resident instance")
 	}
 }
 
