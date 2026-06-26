@@ -46,6 +46,7 @@ func RunTaskWithContext(parent context.Context, cfg TaskConfig, proxy ProxyConfi
 	defer cancel()
 
 	cmd := exec.Command(cfg.Command, cfg.Args...)
+	cmd.Env = append(cmd.Environ(), "PYTHONUNBUFFERED=1")
 	procCtl, err := newProcessController(cmd, logger)
 	if err != nil {
 		return "", fmt.Errorf("task %q: process controller setup failed: %w", cfg.Name, err)
