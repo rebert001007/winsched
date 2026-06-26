@@ -8,7 +8,7 @@ import (
 	"golang.org/x/sys/windows/svc/mgr"
 )
 
-// installService registers winsched as a Windows service with manual start type.
+// installService registers winsched as a Windows service with automatic start type.
 func installService(interactive bool) error {
 	exePath, err := os.Executable()
 	if err != nil {
@@ -28,10 +28,12 @@ func installService(interactive bool) error {
 	}
 
 	s, err = m.CreateService("winsched", exePath, mgr.Config{
-		DisplayName: "WinSched",
-		Description: "Windows scheduled task service",
-		StartType:   mgr.StartAutomatic,
-	})
+		DisplayName:      "WinSched",
+		Description:      "Windows scheduled task service",
+		StartType:        mgr.StartAutomatic,
+		ErrorControl:     mgr.ErrorNormal,
+		DelayedAutoStart: true,
+	}, "run")
 	if err != nil {
 		return fmt.Errorf("cannot create service: %w", err)
 	}
@@ -47,7 +49,7 @@ func installService(interactive bool) error {
 	}
 
 	if interactive {
-		fmt.Println("Service 'winsched' installed successfully (StartType: automatic).")
+		fmt.Println("Service 'winsched' installed successfully (StartType: automatic, account: LocalSystem).")
 	}
 	return nil
 }

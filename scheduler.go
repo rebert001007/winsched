@@ -331,7 +331,7 @@ func (s *Scheduler) UpdateTask(task TaskConfig) error {
 	}
 
 	if task.Resident {
-		s.startResidentLocked(task)
+		s.restartResidentLocked(task)
 		return nil
 	}
 	if task.Cron == "" {

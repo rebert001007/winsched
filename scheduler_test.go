@@ -327,6 +327,69 @@ func TestScheduler_RestartResidentQueuesStartUntilCurrentExit(t *testing.T) {
 	}
 }
 
+func TestScheduler_UpdateResidentQueuesStartUntilCurrentExit(t *testing.T) {
+	logger, _ := NewLogger(DebugLevel, "", false)
+	defer logger.Close()
+
+	sched := NewScheduler(&Config{}, logger)
+	defer sched.Stop()
+
+	cancelCalled := false
+	task := TaskConfig{
+		Name:            "resident-update-queue",
+		Command:         "cmd.exe",
+		Args:            []string{"/c", "echo first"},
+		Timeout:         Duration(5 * time.Second),
+		Enabled:         true,
+		Resident:        true,
+		RestartInterval: Duration(10 * time.Millisecond),
+	}
+	sched.mu.Lock()
+	sched.nextResidentID = 4
+	sched.resident[task.Name] = residentState{
+		id: 4,
+		cancel: func() {
+			cancelCalled = true
+		},
+		done: make(chan struct{}),
+	}
+	sched.mu.Unlock()
+
+	updated := task
+	updated.Args = []string{"/c", "echo updated"}
+	if err := sched.UpdateTask(updated); err != nil {
+		t.Fatal(err)
+	}
+	if !cancelCalled {
+		t.Fatal("update should cancel the current resident instance")
+	}
+
+	sched.mu.Lock()
+	state := sched.resident[task.Name]
+	if !state.stopping {
+		t.Fatal("update should mark current resident instance as stopping")
+	}
+	if state.next == nil {
+		t.Fatal("update should queue the updated resident config")
+	}
+	if state.id != 4 {
+		t.Fatalf("update should not start a new instance before current exits, got id %d", state.id)
+	}
+	sched.mu.Unlock()
+
+	sched.finishResidentIfCurrent(task.Name, 4)
+
+	sched.mu.Lock()
+	defer sched.mu.Unlock()
+	state, exists := sched.resident[task.Name]
+	if !exists {
+		t.Fatal("queued update should start after current instance exits")
+	}
+	if state.id == 4 {
+		t.Fatal("queued update should create a new resident instance")
+	}
+}
+
 func TestScheduler_ResidentControlsRejectScheduledTask(t *testing.T) {
 	logger, _ := NewLogger(DebugLevel, "", false)
 	defer logger.Close()

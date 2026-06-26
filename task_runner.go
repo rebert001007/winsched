@@ -13,6 +13,7 @@ import (
 const maxOutputLen = 256 * 1024
 const maxProxyWait = 30 * time.Second
 const proxyRetryInterval = 2 * time.Second
+const gracefulStopWait = 10 * time.Second
 
 // RunTask executes the command defined by cfg with a timeout context.
 // If cfg.UseProxy is set, it first verifies proxy connectivity.
@@ -44,7 +45,13 @@ func RunTaskWithContext(parent context.Context, cfg TaskConfig, proxy ProxyConfi
 	}
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, cfg.Command, cfg.Args...)
+	cmd := exec.Command(cfg.Command, cfg.Args...)
+	procCtl, err := newProcessController(cmd, logger)
+	if err != nil {
+		return "", fmt.Errorf("task %q: process controller setup failed: %w", cfg.Name, err)
+	}
+	defer procCtl.Close()
+
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return "", fmt.Errorf("task %q: stdout pipe failed: %w", cfg.Name, err)
@@ -71,13 +78,38 @@ func RunTaskWithContext(parent context.Context, cfg TaskConfig, proxy ProxyConfi
 	if err := cmd.Start(); err != nil {
 		return "", fmt.Errorf("task %q failed to start: %w", cfg.Name, err)
 	}
+	if err := procCtl.AfterStart(cmd); err != nil {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		return "", fmt.Errorf("task %q: process controller start failed: %w", cfg.Name, err)
+	}
 
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go streamOutput(stdout, appendOutput, &wg)
 	go streamOutput(stderr, appendOutput, &wg)
 
-	err = cmd.Wait()
+	waitCh := make(chan error, 1)
+	go func() {
+		waitCh <- cmd.Wait()
+	}()
+
+	canceled := false
+	forcedKill := false
+	select {
+	case err = <-waitCh:
+	case <-ctx.Done():
+		canceled = true
+		procCtl.RequestGracefulStop(cmd)
+		select {
+		case err = <-waitCh:
+			procCtl.ForceKill(cmd)
+		case <-time.After(gracefulStopWait):
+			forcedKill = true
+			procCtl.ForceKill(cmd)
+			err = <-waitCh
+		}
+	}
 	wg.Wait()
 
 	if out != "" {
@@ -89,9 +121,19 @@ func RunTaskWithContext(parent context.Context, cfg TaskConfig, proxy ProxyConfi
 			return out, fmt.Errorf("task %q timed out after %v", cfg.Name, cfg.Timeout.ToGo())
 		}
 		if ctx.Err() != nil {
+			if forcedKill {
+				return out, fmt.Errorf("task %q canceled and force killed after %v: %w", cfg.Name, gracefulStopWait, ctx.Err())
+			}
 			return out, fmt.Errorf("task %q canceled: %w", cfg.Name, ctx.Err())
 		}
 		return out, fmt.Errorf("task %q failed: %w", cfg.Name, err)
+	}
+
+	if canceled {
+		if forcedKill {
+			return out, fmt.Errorf("task %q canceled and force killed after %v: %w", cfg.Name, gracefulStopWait, ctx.Err())
+		}
+		return out, fmt.Errorf("task %q canceled: %w", cfg.Name, ctx.Err())
 	}
 
 	return out, nil

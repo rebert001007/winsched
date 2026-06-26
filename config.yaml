@@ -13,7 +13,7 @@ telegram:
     enabled: true
 tasks:
     - name: football-daily-news-incremental
-      description: Half-hourly incremental sync of Dongqiudi, Zhibo8, FIFA, and ESPN news. Each source syncs to std_news independently. Runs at :27 and :57 (3min before :00/:30).
+      description: Half-hourly incremental sync of Dongqiudi, Zhibo8, FIFA, ESPN, SkySports, and Guardian news. Each source syncs to std_news independently. Runs at :27 and :57 (3min before :00/:30).
       cron: 27,57 * * * *
       command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
       args:
@@ -26,6 +26,8 @@ tasks:
       timeout: 30m0s
       enabled: true
       use_proxy: false
+      resident: false
+      restart_interval: 0s
     - name: football-daily-dongqiudi-matches
       description: Sync Dongqiudi important matches daily at Beijing 01:05 (CST) for Football Daily WeChat.
       cron: 5 1 * * *
@@ -40,6 +42,8 @@ tasks:
       timeout: 30m0s
       enabled: true
       use_proxy: false
+      resident: false
+      restart_interval: 0s
     - name: football-daily-morning-report
       description: Generate Football Daily morning report prompt daily at Beijing 07:00 (CST).
       cron: 0 7 * * *
@@ -54,6 +58,8 @@ tasks:
       timeout: 30m0s
       enabled: true
       use_proxy: false
+      resident: false
+      restart_interval: 0s
     - name: football-daily-evening-report
       description: Generate Football Daily evening report daily at Beijing 17:00 (CST).
       cron: 0 17 * * *
@@ -68,6 +74,8 @@ tasks:
       timeout: 30m0s
       enabled: true
       use_proxy: false
+      resident: false
+      restart_interval: 0s
     - name: football-daily-wc-group-results
       description: Refresh World Cup group stage results from FIFA API, update predictions JSON, and deploy to Cloudflare Pages. Runs every 30 minutes at :10/:40 from 06:10 to 15:40 BJT during World Cup group stage.
       cron: 10,40 6-15 * * *
@@ -82,6 +90,8 @@ tasks:
       timeout: 30m0s
       enabled: true
       use_proxy: false
+      resident: false
+      restart_interval: 0s
     - name: football-daily-ssh-tunnel
       description: Health-check and start the local SSH tunnel used as the fixed WeChat API proxy endpoint.
       cron: '*/5 * * * *'
@@ -96,3 +106,93 @@ tasks:
       timeout: 30m0s
       enabled: true
       use_proxy: false
+      resident: false
+      restart_interval: 0s
+    - name: football-daily-match-report-worker
+      description: 'Resident post-match report collector: scans important matches every second, refreshes DQD status near full time, and collects Guardian/FotMob/DQD/FIFA evidence.'
+      cron: ""
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_match_report_worker_winsched.ps1
+        - -Mode
+        - collector
+      timeout: 0s
+      enabled: true
+      use_proxy: false
+      resident: true
+      restart_interval: 30s
+    - name: football-daily-match-report-wechat
+      description: 'Resident post-match report WeChat channel worker: consumes ready evidence and uploads/updates WeChat drafts.'
+      cron: ""
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_match_report_worker_winsched.ps1
+        - -Mode
+        - wechat
+      timeout: 0s
+      enabled: true
+      use_proxy: false
+      resident: true
+      restart_interval: 30s
+    - name: football-daily-match-report-toutiao
+      description: 'Resident post-match report Toutiao channel worker: consumes ready evidence and publicly publishes Toutiao articles.'
+      cron: ""
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_match_report_worker_winsched.ps1
+        - -Mode
+        - toutiao
+      timeout: 0s
+      enabled: true
+      use_proxy: false
+      resident: true
+      restart_interval: 30s
+    - name: football-daily-weitoutiao-live-worker
+      description: 'Resident live Weitoutiao worker: monitors live World Cup/core matches, refreshes Guardian KeyEventsCarousel, writes micro posts with DeepSeek, and publishes Toutiao micro posts when enabled.'
+      cron: ""
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_weitoutiao_live_worker_winsched.ps1
+        - -PublishPublic
+      timeout: 0s
+      enabled: true
+      use_proxy: false
+      resident: true
+      restart_interval: 30s
+    - name: football-daily-weitoutiao-topic-worker
+      description: 'Resident Weitoutiao topic worker: generates hot-topic plans at 07:30/11:40/17:30/21:00 BJT and executes due micro drafts.'
+      cron: ""
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_weitoutiao_topic_worker_winsched.ps1
+        - -PublishPublic
+      timeout: 0s
+      enabled: true
+      use_proxy: false
+      resident: true
+      restart_interval: 30s
