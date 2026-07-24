@@ -14,8 +14,14 @@ type Logger struct {
 	level       LogLevel
 	file        *os.File
 	elog        *eventlog.Log
+	eventQueue  chan logEvent
 	interactive bool
 	mu          sync.Mutex
+}
+
+type logEvent struct {
+	level LogLevel
+	msg   string
 }
 
 // NewLogger creates a dual-output logger. If filePath is empty, file logging is disabled.
@@ -39,6 +45,8 @@ func NewLogger(level LogLevel, filePath string, interactive bool) (*Logger, erro
 		}
 	} else {
 		l.elog = elog
+		l.eventQueue = make(chan logEvent, 256)
+		go l.writeEvents()
 	}
 
 	return l, nil
@@ -50,9 +58,6 @@ func (l *Logger) Close() {
 	defer l.mu.Unlock()
 	if l.file != nil {
 		l.file.Close()
-	}
-	if l.elog != nil {
-		l.elog.Close()
 	}
 }
 
@@ -70,7 +75,6 @@ func (l *Logger) log(level LogLevel, format string, args ...any) {
 	line := fmt.Sprintf("[%s] %s: %s\n", time.Now().In(beijingLoc).Format("2006-01-02 15:04:05"), level, msg)
 
 	l.mu.Lock()
-	defer l.mu.Unlock()
 
 	if l.file != nil {
 		l.file.WriteString(line)
@@ -78,14 +82,28 @@ func (l *Logger) log(level LogLevel, format string, args ...any) {
 	if l.interactive {
 		os.Stdout.WriteString(line)
 	}
-	if l.elog != nil {
-		switch level {
-		case ErrorLevel:
-			l.elog.Error(1, msg)
-		case WarnLevel:
-			l.elog.Warning(1, msg)
+	l.mu.Unlock()
+
+	if l.eventQueue != nil {
+		select {
+		case l.eventQueue <- logEvent{level: level, msg: msg}:
 		default:
-			l.elog.Info(1, msg)
+		}
+	}
+}
+
+func (l *Logger) writeEvents() {
+	for entry := range l.eventQueue {
+		if l.elog == nil {
+			continue
+		}
+		switch entry.level {
+		case ErrorLevel:
+			l.elog.Error(1, entry.msg)
+		case WarnLevel:
+			l.elog.Warning(1, entry.msg)
+		default:
+			l.elog.Info(1, entry.msg)
 		}
 	}
 }
