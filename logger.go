@@ -2,21 +2,29 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/sys/windows/svc/eventlog"
 )
 
+const localLogQueueSize = 1024
+
 // Logger writes to both a log file and the Windows Event Log.
 type Logger struct {
 	level       LogLevel
-	file        *os.File
+	file        io.WriteCloser
+	localQueue  chan string
+	localDone   chan struct{}
 	elog        *eventlog.Log
 	eventQueue  chan logEvent
 	interactive bool
-	mu          sync.Mutex
+	closeMu     sync.RWMutex
+	closed      bool
+	dropped     atomic.Uint64
 }
 
 type logEvent struct {
@@ -37,6 +45,11 @@ func NewLogger(level LogLevel, filePath string, interactive bool) (*Logger, erro
 			l.file = f
 		}
 	}
+	if l.file != nil || interactive {
+		l.localQueue = make(chan string, localLogQueueSize)
+		l.localDone = make(chan struct{})
+		go l.writeLocalLogs()
+	}
 
 	elog, err := eventlog.Open("winsched")
 	if err != nil {
@@ -54,10 +67,22 @@ func NewLogger(level LogLevel, filePath string, interactive bool) (*Logger, erro
 
 // Close flushes and closes log resources.
 func (l *Logger) Close() {
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	l.closeMu.Lock()
+	if l.closed {
+		l.closeMu.Unlock()
+		return
+	}
+	l.closed = true
+	if l.localQueue != nil {
+		close(l.localQueue)
+	}
+	l.closeMu.Unlock()
+
+	if l.localDone != nil {
+		<-l.localDone
+	}
 	if l.file != nil {
-		l.file.Close()
+		_ = l.file.Close()
 	}
 }
 
@@ -74,20 +99,33 @@ func (l *Logger) log(level LogLevel, format string, args ...any) {
 	msg := fmt.Sprintf(format, args...)
 	line := fmt.Sprintf("[%s] %s: %s\n", time.Now().In(beijingLoc).Format("2006-01-02 15:04:05"), level, msg)
 
-	l.mu.Lock()
-
-	if l.file != nil {
-		l.file.WriteString(line)
+	l.closeMu.RLock()
+	if !l.closed && l.localQueue != nil {
+		select {
+		case l.localQueue <- line:
+		default:
+			l.dropped.Add(1)
+		}
 	}
-	if l.interactive {
-		os.Stdout.WriteString(line)
-	}
-	l.mu.Unlock()
+	l.closeMu.RUnlock()
 
 	if l.eventQueue != nil {
 		select {
 		case l.eventQueue <- logEvent{level: level, msg: msg}:
 		default:
+		}
+	}
+}
+
+// writeLocalLogs serializes output lines without making callers wait for I/O.
+func (l *Logger) writeLocalLogs() {
+	defer close(l.localDone)
+	for line := range l.localQueue {
+		if l.file != nil {
+			_, _ = io.WriteString(l.file, line)
+		}
+		if l.interactive {
+			_, _ = os.Stdout.WriteString(line)
 		}
 	}
 }

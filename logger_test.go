@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 )
@@ -14,12 +15,11 @@ func TestLoggerLevelFiltering(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer logger.Close()
-
 	logger.Debug("should not appear")
 	logger.Info("should appear")
 	logger.Warn("warning")
 	logger.Error("error")
+	logger.Close()
 
 	data, err := os.ReadFile(filePath)
 	if err != nil {
@@ -47,9 +47,8 @@ func TestLoggerDebugLevel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer logger.Close()
-
 	logger.Debug("debug msg")
+	logger.Close()
 	data, _ := os.ReadFile(filePath)
 	if !contains(string(data), "debug msg") {
 		t.Error("debug message should appear at debug level")
@@ -65,9 +64,11 @@ func TestLoggerDoesNotBlockWhenEventQueueIsFull(t *testing.T) {
 	logger := &Logger{
 		level:      InfoLevel,
 		file:       file,
+		localQueue: make(chan string, localLogQueueSize),
+		localDone:  make(chan struct{}),
 		eventQueue: make(chan logEvent, 1),
 	}
-	defer logger.Close()
+	go logger.writeLocalLogs()
 	logger.eventQueue <- logEvent{}
 
 	done := make(chan struct{})
@@ -81,6 +82,7 @@ func TestLoggerDoesNotBlockWhenEventQueueIsFull(t *testing.T) {
 	case <-time.After(100 * time.Millisecond):
 		t.Fatal("logging blocked on a full event queue")
 	}
+	logger.Close()
 
 	data, err := os.ReadFile(filePath)
 	if err != nil {
@@ -89,6 +91,52 @@ func TestLoggerDoesNotBlockWhenEventQueueIsFull(t *testing.T) {
 	if !contains(string(data), "still writes local logs") {
 		t.Fatal("local log entry was not written")
 	}
+}
+
+type blockingWriteCloser struct {
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (w *blockingWriteCloser) Write(p []byte) (int, error) {
+	w.once.Do(func() { close(w.started) })
+	<-w.release
+	return len(p), nil
+}
+
+func (w *blockingWriteCloser) Close() error { return nil }
+
+func TestLoggerDoesNotBlockWhenLocalWriterStalls(t *testing.T) {
+	writer := &blockingWriteCloser{started: make(chan struct{}), release: make(chan struct{})}
+	logger := &Logger{
+		level:      InfoLevel,
+		file:       writer,
+		localQueue: make(chan string, localLogQueueSize),
+		localDone:  make(chan struct{}),
+	}
+	go logger.writeLocalLogs()
+
+	logger.Info("first entry blocks the writer")
+	select {
+	case <-writer.started:
+	case <-time.After(time.Second):
+		t.Fatal("local log worker did not start")
+	}
+
+	done := make(chan struct{})
+	go func() {
+		logger.Info("scheduler must not wait for local I/O")
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("logging blocked on a stalled local writer")
+	}
+
+	close(writer.release)
+	logger.Close()
 }
 
 func contains(s, substr string) bool {
