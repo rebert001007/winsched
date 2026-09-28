@@ -13,7 +13,7 @@ telegram:
     enabled: true
 tasks:
     - name: football-daily-news-incremental
-      description: Half-hourly incremental sync of Dongqiudi, Zhibo8, FIFA, ESPN, SkySports, and Guardian news. Each source syncs to std_news independently. Runs at :27 and :57 (3min before :00/:30).
+      description: Half-hourly incremental sync of Dongqiudi, Zhibo8, FIFA, ESPN, SkySports, Guardian, Marca, Mundo Deportivo, Sport, AS, GOAL, Olé, OneFootball, Al Jazeera, BBC Sport, and The Athletic news. Writes media download jobs but does not download media inline. Runs at :27 and :57.
       cron: 27,57 * * * *
       command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
       args:
@@ -24,13 +24,13 @@ tasks:
         - -File
         - D:\codes\dev\football-daily-wechat\scripts\run_news_incremental_sync_winsched.ps1
       timeout: 30m0s
-      enabled: true
+      enabled: false
       use_proxy: false
       resident: false
       restart_interval: 0s
     - name: football-daily-dongqiudi-matches
-      description: Sync Dongqiudi important matches daily at Beijing 01:05 (CST) for Football Daily WeChat.
-      cron: 5 1 * * *
+      description: Sync Dongqiudi important matches daily at Beijing 06:40, 16:40, and 23:40 (CST) for Football Daily WeChat.
+      cron: 40 6,16,23 * * *
       command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
       args:
         - -NoLogo
@@ -45,9 +45,9 @@ tasks:
       resident: false
       restart_interval: 0s
     - name: football-daily-morning-report
-      description: Generate Football Daily morning report prompt daily at Beijing 07:00 (CST).
-      cron: 0 7 * * *
-      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
+      description: Generate Football Daily morning report prompt daily at Beijing 07:20 (CST).
+      cron: 20 7 * * *
+      command: pwsh.exe
       args:
         - -NoLogo
         - -NoProfile
@@ -56,45 +56,13 @@ tasks:
         - -File
         - D:\codes\dev\football-daily-wechat\scripts\run_morning_report_winsched.ps1
       timeout: 30m0s
-      enabled: true
-      use_proxy: false
-      resident: false
-      restart_interval: 0s
-    - name: football-daily-evening-report
-      description: Generate Football Daily evening report daily at Beijing 17:00 (CST).
-      cron: 0 17 * * *
-      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
-      args:
-        - -NoLogo
-        - -NoProfile
-        - -ExecutionPolicy
-        - Bypass
-        - -File
-        - D:\codes\dev\football-daily-wechat\scripts\run_evening_report_winsched.ps1
-      timeout: 30m0s
-      enabled: true
-      use_proxy: false
-      resident: false
-      restart_interval: 0s
-    - name: football-daily-wc-group-results
-      description: Refresh World Cup group stage results from FIFA API, update predictions JSON, and deploy to Cloudflare Pages. Runs every 30 minutes at :10/:40 from 06:10 to 15:40 BJT during World Cup group stage.
-      cron: 10,40 6-15 * * *
-      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
-      args:
-        - -NoLogo
-        - -NoProfile
-        - -ExecutionPolicy
-        - Bypass
-        - -File
-        - D:\codes\dev\football-daily-wechat\scripts\run_wc_group_results_winsched.ps1
-      timeout: 30m0s
-      enabled: true
+      enabled: false
       use_proxy: false
       resident: false
       restart_interval: 0s
     - name: football-daily-ssh-tunnel
-      description: Health-check and start the local SSH tunnel used as the fixed WeChat API proxy endpoint.
-      cron: '*/5 * * * *'
+      description: Resident local SSH tunnel used as the fixed WeChat API proxy endpoint.
+      cron: ""
       command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
       args:
         - -NoLogo
@@ -103,13 +71,13 @@ tasks:
         - Bypass
         - -File
         - D:\codes\dev\football-daily-wechat\scripts\run_ssh_tunnel_proxy_winsched.ps1
-      timeout: 30m0s
+      timeout: 0s
       enabled: true
       use_proxy: false
-      resident: false
-      restart_interval: 0s
+      resident: true
+      restart_interval: 30s
     - name: football-daily-match-report-worker
-      description: 'Resident post-match report collector: scans important matches every second, refreshes DQD status near full time, and collects Guardian/FotMob/DQD/FIFA evidence.'
+      description: 'Resident WeChat match-report worker: prewarms compact news, tournament history, and JPG assets after kickoff; scans every 30 seconds in final-match windows, then collects final evidence and uploads a draft.'
       cron: ""
       command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
       args:
@@ -122,12 +90,12 @@ tasks:
         - -Mode
         - collector
       timeout: 0s
-      enabled: true
+      enabled: false
       use_proxy: false
       resident: true
       restart_interval: 30s
     - name: football-daily-match-report-wechat
-      description: 'Resident post-match report WeChat channel worker: consumes ready evidence and uploads/updates WeChat drafts.'
+      description: 'Retired: WeChat draft creation now runs immediately in the collector worker.'
       cron: ""
       command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
       args:
@@ -140,12 +108,12 @@ tasks:
         - -Mode
         - wechat
       timeout: 0s
-      enabled: true
+      enabled: false
       use_proxy: false
       resident: true
       restart_interval: 30s
-    - name: football-daily-match-report-toutiao
-      description: 'Resident post-match report Toutiao channel worker: consumes ready evidence and publicly publishes Toutiao articles.'
+    - name: football-daily-news-media-download
+      description: 'Resident news media downloader: consumes news_media_download_jobs independently from the half-hourly news sync.'
       cron: ""
       command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
       args:
@@ -154,17 +122,15 @@ tasks:
         - -ExecutionPolicy
         - Bypass
         - -File
-        - D:\codes\dev\football-daily-wechat\scripts\run_match_report_worker_winsched.ps1
-        - -Mode
-        - toutiao
+        - D:\codes\dev\football-daily-wechat\scripts\run_news_media_download_winsched.ps1
       timeout: 0s
-      enabled: true
+      enabled: false
       use_proxy: false
       resident: true
       restart_interval: 30s
-    - name: football-daily-weitoutiao-live-worker
-      description: 'Resident live Weitoutiao worker: monitors live World Cup/core matches, refreshes Guardian KeyEventsCarousel, writes micro posts with DeepSeek, and publishes Toutiao micro posts when enabled.'
-      cron: ""
+    - name: football-daily-worldcup-knockout-ref-update
+      description: 'World Cup knockout external ref sync: runs at 05:40/12:40/18:40 BJT, links fifa/guardian/opta/fotmob/sofascore refs to std_matches, sends TG alert on new associations.'
+      cron: 40 5,12,18 * * *
       command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
       args:
         - -NoLogo
@@ -172,15 +138,113 @@ tasks:
         - -ExecutionPolicy
         - Bypass
         - -File
-        - D:\codes\dev\football-daily-wechat\scripts\run_weitoutiao_live_worker_winsched.ps1
+        - D:\codes\dev\football-daily-wechat\scripts\run_worldcup_knockout_ref_update_winsched.ps1
+      timeout: 5m0s
+      enabled: false
+      use_proxy: false
+      resident: false
+      restart_interval: 0s
+    - name: football-daily-uefa-priority-sources
+      description: 'Daily UEFA priority source sync: auto-discovers first-layer UEFA competitions/seasons, updates uefa_* source tables only, and sends TG notification when source matches are new or changed.'
+      cron: 15 8 * * *
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_uefa_priority_sources_winsched.ps1
+      timeout: 10m0s
+      enabled: true
+      use_proxy: false
+      resident: false
+      restart_interval: 0s
+    - name: chendu-says-daily-strategy
+      description: Generate the daily Chen Du Says strategy through DeepSeek Pro V4 before any publication window.
+      cron: 5 0 * * *
+      command: C:\Users\Reechard\.codex\bin\PowerShell\7\pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\chendu-says\scripts\run_daily_strategy_winsched.ps1
+      timeout: 10m0s
+      enabled: false
+      use_proxy: false
+      resident: false
+      restart_interval: 0s
+    - name: chendu-says-content-publisher
+      description: Resident Chen Du Says worker. At configured slots it generates DeepSeek Pro V4 copy, generates the image, validates the account, and publishes once only.
+      cron: ""
+      command: C:\Users\Reechard\.codex\bin\PowerShell\7\pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\chendu-says\scripts\run_content_publish_winsched.ps1
+      timeout: 0s
+      enabled: false
+      use_proxy: false
+      resident: true
+      restart_interval: 30s
+    - name: yueyao-morning-pipeline-slot1
+      description: Run YueYao TikTok slot 1 pipeline at 16:30 America/Los_Angeles.
+      cron: 30 7 * * *
+      command: pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\yueyao-tiktok-ops\scripts\pipeline\run_morning_slot1_winsched.ps1
+      timeout: 30m0s
+      enabled: false
+      use_proxy: false
+      resident: false
+      restart_interval: 0s
+    - name: football-daily-nankantai10-wechat-flash
+      description: 南看台10号 / 微信公众号：手机 App 发布贴图；每日 00:10/02:10/04:10/06:10/10:10/12:10/18:10/21:10 扫描候选（仅DB热门新闻），每次最多选1条发布，日限10条；当前模式：真实公开发布。
+      cron: 10 0,2,4,6,10,12,18,21 * * *
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_nankantai10_wechat_flash_winsched.ps1
         - -PublishPublic
-      timeout: 0s
+        - -NoDryRun
+        - -NoPush
+      timeout: 30m0s
+      enabled: false
+      use_proxy: false
+      resident: false
+      restart_interval: 0s
+    - name: football-daily-nankantai10-wechat-flash-strategy-refresh
+      description: 南看台10号 / 微信公众号：每日04:20采集最近7日发布表现到PG；样本充足时自动更新DeepSeek选题prompt与Gemini写作prompt；发布策略只记录建议，不自动改cron。
+      cron: 20 4 * * *
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_nankantai10_wechat_flash_strategy_refresh_winsched.ps1
+      timeout: 20m0s
       enabled: true
       use_proxy: false
-      resident: true
-      restart_interval: 30s
-    - name: football-daily-weitoutiao-topic-worker
-      description: 'Resident Weitoutiao topic worker: generates hot-topic plans at 07:30/11:40/17:30/21:00 BJT and executes due micro drafts.'
+      resident: false
+      restart_interval: 0s
+    - name: football-daily-nankantai10-wechat-flash-delayed-worker
+      description: 南看台10号 / 微信公众号贴图：常驻延迟发布 worker，每10秒扫描PG队列并原子领取到期计划。
       cron: ""
       command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
       args:
@@ -189,10 +253,399 @@ tasks:
         - -ExecutionPolicy
         - Bypass
         - -File
-        - D:\codes\dev\football-daily-wechat\scripts\run_weitoutiao_topic_worker_winsched.ps1
-        - -PublishPublic
+        - D:\codes\dev\football-daily-wechat\scripts\run_nankantai10_wechat_flash_delayed_worker_winsched.ps1
       timeout: 0s
       enabled: true
       use_proxy: false
       resident: true
       restart_interval: 30s
+    - name: football-daily-fotmob-highlight-watch
+      description: 'Resident future-match watcher: audits DQD/FotMob refs and records FotMob highlight first-observed delay after DQD full time.'
+      cron: ""
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_fotmob_highlight_watch_winsched.ps1
+        - -Until
+        - "2026-08-10T02:26:12.7455118Z"
+      timeout: 0s
+      enabled: true
+      use_proxy: false
+      resident: true
+      restart_interval: 30s
+    - name: football-daily-fotmob-highlight-report
+      description: 06:40 Beijing Telegram report for the prior overnight FotMob highlight monitoring window.
+      cron: 40 6 * * *
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_fotmob_highlight_watch_winsched.ps1
+        - -Report
+        - -Until
+        - "2026-08-10T02:26:12.7455118Z"
+      timeout: 5m0s
+      enabled: true
+      use_proxy: false
+      resident: false
+      restart_interval: 0s
+    - name: football-daily-today-topics-incremental
+      description: North Stand incremental DQD/Zhibo8 topics at Beijing 03:17, 06:17, 07:17, 12:17, 17:17, 21:17, and 22:17. Writes data, then targeted-exports only the topics changed in this run and pushes them with scp (standalone deploy task removed 2026-09-14; no deploy lock).
+      cron: 17 3,6,7,12,17,21,22 * * *
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_today_topics_incremental_winsched.ps1
+      timeout: 45m0s
+      enabled: true
+      use_proxy: false
+      resident: false
+      restart_interval: 0s
+    - name: football-daily-today-topics-daily-snapshot
+      description: North Stand daily 00:45 snapshot of yesterday's 24h topics, export and rsync deploy
+      cron: 45 0 * * *
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_today_topics_daily_snapshot_winsched.ps1
+      timeout: 30m0s
+      enabled: true
+      use_proxy: false
+      resident: false
+      restart_interval: 0s
+    - name: football-daily-match-score-refresh
+      description: North Stand match score refresh every 10 minutes; gated DQD calls, writes scores/status to DB and records finish events (rendering/deploy moved to football-daily-match-scores-deploy)
+      cron: '*/10 * * * *'
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_match_score_refresh_winsched.ps1
+      timeout: 30m0s
+      enabled: true
+      use_proxy: false
+      resident: false
+      restart_interval: 0s
+    - name: football-daily-match-finish-topic-worker
+      description: 'North Stand match-finish event consumer: when new finished matches are recorded by the score-refresh task, trigger a today-topics incremental pass (clustering + detail writing + export + rsync deploy)'
+      cron: 4,14,24,34,44,54 * * * *
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_match_finish_topic_worker_winsched.ps1
+      timeout: 2h0m0s
+      enabled: true
+      use_proxy: false
+      resident: false
+      restart_interval: 0s
+    - name: football-daily-team-page-refresh
+      description: 'North Stand entity refresh: consume match_finish_events finished >=30m, refresh DQD standings + std_standing, rebuild affected competition and team pages, rsync deploy on change'
+      cron: 7 * * * *
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_team_page_refresh_winsched.ps1
+      timeout: 30m0s
+      enabled: true
+      use_proxy: false
+      resident: false
+      restart_interval: 0s
+    - name: football-daily-post-match-completion
+      description: 'North Stand post-match completion: 10-min scan of match_finish_events; DQD lineup+roster to std, fotmob lineup refs, avatars/logos, person/team page rebuild, post-FT key-events rewrite + topic rerender'
+      cron: '*/10 * * * *'
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_post_match_completion_winsched.ps1
+      timeout: 30m0s
+      enabled: true
+      use_proxy: false
+      resident: false
+      restart_interval: 0s
+    - name: football-daily-daily-standings-refresh
+      description: 'Daily standings refresh at 06:00 BJT: all competitions with finished matches in the last ~26h, one refresh per competition'
+      cron: 0 6 * * *
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_daily_standings_winsched.ps1
+      timeout: 30m0s
+      enabled: true
+      use_proxy: false
+      resident: false
+      restart_interval: 0s
+    - name: football-daily-mls-standings-refresh
+      description: MLS standings refresh at 12:00 BJT (second update per user decision)
+      cron: 0 12 * * *
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_daily_standings_winsched.ps1
+        - -MlsOnly
+      timeout: 30m0s
+      enabled: true
+      use_proxy: false
+      resident: false
+      restart_interval: 0s
+    - name: football-daily-winsched-alert-watchdog
+      description: Scan winsched alert heartbeat files every 5 minutes and notify TG when a task was hard-killed or left without completion signal
+      cron: 0,5,10,15,20,25,30,35,40,45,50,55 * * * *
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_winsched_alert_watchdog.ps1
+      timeout: 30m0s
+      enabled: true
+      use_proxy: false
+      resident: false
+      restart_interval: 0s
+    - name: football-daily-ai-provider-health-report
+      description: 'Daily AI provider health report: DeepSeek balance, OpenRouter credits, topic pipeline failure stats, TG digest'
+      cron: 30 8 * * *
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_ai_provider_health_report_winsched.ps1
+      timeout: 30m0s
+      enabled: true
+      use_proxy: false
+      resident: false
+      restart_interval: 0s
+    - name: football-daily-new-entity-pipeline
+      description: 新实体增量补齐：DQD 新球队/球员/教练 -> std 建卡 + fotmob/zhibo8 关联 + 队徽头像下载 + 缺失实体页生成（裁判无源跳过）；TG 汇总
+      cron: 50 3,6,7,12,17,21,22 * * *
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_new_entity_pipeline_winsched.ps1
+      timeout: 30m0s
+      enabled: true
+      use_proxy: false
+      resident: false
+      restart_interval: 0s
+    - name: football-daily-match-scores-deploy
+      description: North Stand match scores deploy every 10 minutes (offset +5 from data refresh); renders home/matches pages from DB scores and rsync deploys only on change
+      cron: 5-59/10 * * * *
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_match_scores_deploy_winsched.ps1
+      timeout: 30m0s
+      enabled: true
+      use_proxy: false
+      resident: false
+      restart_interval: 0s
+    - name: football-daily-entity-enrichment-worker
+      description: 实体资料队列独立消费 worker：每 10 分钟一轮（永远最新代码）；内置 HTTP 控制接口 127.0.0.1:15733（POST /stop 优雅停机、GET /status）；与老实例优雅交接（处理完当前实体退出，不产生僵尸 running）；启动回收超时 running；队列空即退出
+      cron: '*/10 * * * *'
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_entity_enrichment_winsched.ps1
+      timeout: 30m0s
+      enabled: true
+      use_proxy: false
+      resident: false
+      restart_interval: 0s
+    - name: football-daily-post-match-wechat-pipeline
+      description: 'Post-match 3-stage chain, every 5 min (non-resident): (1) match highlight GIFs, (2) WeChat draft with cover + in-body GIFs, (3) attach GIFs to topic key events; marks expired after 5h without success; Telegram on success and failure'
+      cron: '*/5 * * * *'
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_post_match_wechat_pipeline_winsched.ps1
+      timeout: 1h25m0s
+      enabled: true
+      use_proxy: false
+      resident: false
+      restart_interval: 0s
+    - name: football-daily-guardian-live-watch
+      description: 'Guardian liveblog incremental capture, every 5 min: (1) bind in-play matches lacking a Guardian match id (results/fixtures) and record liveURL + reportURL via the match-header API; (2) per-match windows - first crossing of minute 40 (m45), >= minute 80 (m80), and full time (ft). Liveblog blocks are cumulative and upserted by (url, block_id), so a late run only over-fetches, never loses. reportURL is the exact join key for the Guardian news-report cover source.'
+      cron: '*/5 * * * *'
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_guardian_live_watch_winsched.ps1
+      timeout: 10m0s
+      enabled: true
+      use_proxy: false
+      resident: false
+      restart_interval: 0s
+    - name: football-daily-nankantai10-paste-server
+      description: 南看台10号 战报草稿：常驻复制页 HTTP 服务（127.0.0.1:8126）。发布端 POST /page 托管复制页并拿到 http://localhost:8126/xxx.html，手机浏览器打开后点「复制正文」把带样式的正文放进剪贴板，公众号助手 App 粘贴。GET /healthz 供编排层探活。
+      cron: ""
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_nankantai10_paste_server_winsched.ps1
+      timeout: 0s
+      enabled: true
+      use_proxy: false
+      resident: true
+      restart_interval: 30s
+    - name: football-daily-nankantai10-wechat-draft
+      description: 'Nankantai10 match-report WeChat draft chain, every 10 min (non-resident, offset +2min vs highlight pipeline): (1) ensure report markdown (FotMob data -> LLM writing), (2) save the draft through the WeChat MP Assistant ANDROID APP - paste the styled body from the resident paste-page service (127.0.0.1:8126), upload the cover via the app native cover chain and read it back, then save + verify on home. No cover -> fail and retry next round. Telegram on done/failed.'
+      cron: 2,12,22,32,42,52 * * * *
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_nankantai10_wechat_draft_winsched.ps1
+      timeout: 25m0s
+      enabled: true
+      use_proxy: false
+      resident: false
+      restart_interval: 0s
+    - name: football-daily-reddit-rising-day
+      description: Reddit r/soccer rising -> Jev 分类 -> 南看台候选清单 + TG 推送 (白天每10分钟 / 00-06时每30分钟)
+      cron: '*/10 6-23 * * *'
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_reddit_rising_winsched.ps1
+      timeout: 30m0s
+      enabled: true
+      use_proxy: false
+      resident: false
+      restart_interval: 0s
+    - name: football-daily-reddit-rising-night
+      description: Reddit r/soccer rising -> Jev 分类 -> 南看台候选清单 + TG 推送 (白天每10分钟 / 00-06时每30分钟)
+      cron: '*/30 0-5 * * *'
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_reddit_rising_winsched.ps1
+      timeout: 30m0s
+      enabled: true
+      use_proxy: false
+      resident: false
+      restart_interval: 0s
+    - name: football-daily-news-domestic
+      description: Half-hourly incremental sync of Chinese domestic football news (Dongqiudi + Zhibo8). The 16 foreign sources were retired on 2026-09-22 and are no longer included. Runs at :27 and :57.
+      cron: 27,57 * * * *
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_news_incremental_domestic_winsched.ps1
+      timeout: 30m0s
+      enabled: true
+      use_proxy: false
+      resident: false
+      restart_interval: 0s
+    - name: football-daily-yt-interview-watch
+      description: YouTube 采访频道监控 (Sky Sports PL + HaytersTV) -> GLM 初筛 -> Jev 门槛 -> 自动剪辑+中文字幕 -> TG 推送 (全天每30分钟, 只跑增量)
+      cron: '*/30 * * * *'
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_yt_interview_winsched.ps1
+      timeout: 40m0s
+      enabled: true
+      use_proxy: false
+      resident: false
+      restart_interval: 0s
+    - name: football-daily-reddit-goalclip
+      description: Reddit r/soccer Goal/Match Clip -> Jev -> yt-dlp -> GIF -> WeChat CDN -> final.mp4 (*/5, 2026-09-28 秦哥拍板)
+      cron: '*/5 * * * *'
+      command: C:/Users/Reechard/.codex/bin/PowerShell/7/pwsh.exe
+      args:
+        - -NoLogo
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - D:\codes\dev\football-daily-wechat\scripts\run_reddit_goalclip_winsched.ps1
+      timeout: 25m0s
+      enabled: true
+      use_proxy: false
+      resident: false
+      restart_interval: 0s
