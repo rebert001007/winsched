@@ -517,7 +517,7 @@ tasks:
         - -File
         - D:\codes\dev\football-daily-wechat\scripts\run_post_match_wechat_pipeline_winsched.ps1
       timeout: 1h25m0s
-      enabled: true
+      enabled: false
       use_proxy: false
       resident: false
       restart_interval: 0s
